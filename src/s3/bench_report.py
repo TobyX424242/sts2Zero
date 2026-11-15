@@ -1,5 +1,5 @@
 """One JSON line of throughput numbers for a bench_tr.sh configuration (window from T0 = 240 s to the configured end).
-Usage: python -I research/s3/bench_report.py RUN_DIR SYS_FILE TAG N CSERVERS MACRO_PERIOD SECS "CTRAIN_ARGS" "GUARD"
+Usage: python -I src/s3/bench_report.py RUN_DIR SYS_FILE TAG N CSERVERS MACRO_PERIOD SECS "CTRAIN_ARGS" "GUARD"
 Actor numbers: deltas of the cumulative progress / timing lines between the first line at t >= T0 and the last at t <= end.
 """
 import glob, json, os, re, sys

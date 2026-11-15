@@ -5,7 +5,7 @@ indicators tracked against human play (PROPOSAL.md §7): elites fought, rest vs 
 and the act-3 boss line (boss 1 -> boss 2 conversion, HP share and potions at the second boss's start). With two or more arms on the same
 seeds: paired win differences (McNemar exact test).
 
-Usage: python -I research/s3/summarize_runs.py RUNS.jsonl [RUNS2.jsonl ...]
+Usage: python -I src/s3/summarize_runs.py RUNS.jsonl [RUNS2.jsonl ...]
 """
 import collections, json, math, os, sys
 

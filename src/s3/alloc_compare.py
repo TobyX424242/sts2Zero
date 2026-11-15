@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compares the arms of research/s3/alloc_test.sh: run results, fights by room (won, HP lost, potions used, search spent),
+"""Compares the arms of src/s3/alloc_test.sh: run results, fights by room (won, HP lost, potions used, search spent),
 HP at boss starts, search cost per run, and each arm against the first arm on the same seeds (paired bootstrap).
 usage: alloc_compare.py OUTDIR [arm ...]   (default: every <arm>.jsonl in OUTDIR, the first listed is the reference)"""
 import json, os, sys, glob, random, collections

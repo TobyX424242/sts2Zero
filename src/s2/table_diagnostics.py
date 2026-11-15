@@ -2,7 +2,7 @@
 (a) free disposal: for every table pair P and P + one potion, how often T(P + p) < T(P) (holding a potion valued below
     not holding it), at all HP values; (b) per-member prices: HP price T(full HP) - T(half HP) and potion price
     T(all potions) - T(none) at full HP, for each of the 5 ensemble members, and how much the members disagree.
-Usage: ./.venv/bin/python -I research/s2/table_diagnostics.py <tables.jsonl> <starts.jsonl> <runs.jsonl.gz> <n> <member_dir>...
+Usage: ./.venv/bin/python -I src/s2/table_diagnostics.py <tables.jsonl> <starts.jsonl> <runs.jsonl.gz> <n> <member_dir>...
 """
 import gzip, json, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE); sys.dont_write_bytecode = True

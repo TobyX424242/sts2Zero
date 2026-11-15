@@ -231,7 +231,7 @@ public static class CardSelectCmd
             1, 1, source)).FirstOrDefault();
     }
 
-    // S3 patch (research/s3/iryougi_s3.patch): what a deck selection is for ("transform", "upgrade", "remove"), readable by
+    // S3 patch (src/s3/iryougi_s3.patch): what a deck selection is for ("transform", "upgrade", "remove"), readable by
     // the decision source while it answers the request. No game behaviour depends on it.
     private static readonly AsyncLocal<string?> ScopedDeckPurpose = new();
     public static string? CurrentDeckPurpose => ScopedDeckPurpose.Value;

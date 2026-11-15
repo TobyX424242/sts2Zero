@@ -8,7 +8,7 @@ Sections: (1) the blended target per ascension group x act: how much of the loss
 (3) act 3: the value against the banked progress and against the real chance of winning, by HP,
 (4) state after the first act-3 boss (A10), (5) HP and potions through acts 2-3 at A9 vs A10.
 
-Usage: python -I research/s3/a10val_report.py <extract.npz> [alpha]
+Usage: python -I src/s3/a10val_report.py <extract.npz> [alpha]
 """
 import sys
 import numpy as np

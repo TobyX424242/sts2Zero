@@ -18,7 +18,7 @@
 //   death_value (zero|progress|progress_raw: T_f of a death = 0, or d = (1 - alpha) x acts cleared / 3 as in the macro value
 //   target, capped at T_f(1 HP, no potions) (progress) or with table entries below d raised to d (progress_raw); zero),
 //   death_alpha (alpha for death_value=progress; 0.05), death_scale (d multiplied by this; 1), death_alpha_log (macro_train_log.jsonl: alpha = its last "alpha"
-//   entry when the file has one, else death_alpha), boss2_model (JSON of research/s3/fit_boss2.py: the first of two act-3
+//   entry when the file has one, else death_alpha), boss2_model (JSON of src/s3/fit_boss2.py: the first of two act-3
 //   bosses scored by d + (1 - d) W2(HP share, potions); off), tf_dump (JSONL file, "{tag}" replaced by the actor tag: T_f
 //   tables of the first tf_dump_k act-3 boss and hallway fights per act of this actor; off), tf_dump_k (20),
 //   tf_stake (0/1: tables rescaled to the outcome not yet secured, (T - b) / (1 - b), b = (1 - alpha) x acts cleared / 3;
@@ -46,21 +46,21 @@ string Get(string k, string d) => kv.TryGetValue(k, out var v) ? v : d;
 int GetI(string k, int d) => int.Parse(Get(k, d.ToString()));
 double GetD(string k, double d) => double.Parse(Get(k, d.ToString(System.Globalization.CultureInfo.InvariantCulture)), System.Globalization.CultureInfo.InvariantCulture);
 if (args[0] == "tftest") return TfDeathTest.Run();
-if (args[0] == "prompttest") return await PromptTest.Run(Get("vocab", "research/s0/data/combat_vocab_v1.json"));
-if (args[0] == "encode") return await EncodeTest.Run(Get("out", "research/s3/out/encode"), GetI("runs", 20), GetI("ascension", 10), Get("mvocab", "research/s3/data/macro_vocab.json"));
+if (args[0] == "prompttest") return await PromptTest.Run(Get("vocab", "src/s0/data/combat_vocab_v1.json"));
+if (args[0] == "encode") return await EncodeTest.Run(Get("out", "src/s3/out/encode"), GetI("runs", 20), GetI("ascension", 10), Get("mvocab", "src/s3/data/macro_vocab.json"));
 if (args[0] != "play") { Console.WriteLine("usage: S3 play|encode key=value ..."); return 2; }
 
 string mode = Get("mode", "selfplay");
 bool eval = mode == "eval";
 string tag = Get("tag", "a0");
-var vocab = ObsLayout.Vocab.Load(Get("vocab", "research/s0/data/combat_vocab_v1.json"));
+var vocab = ObsLayout.Vocab.Load(Get("vocab", "src/s0/data/combat_vocab_v1.json"));
 Sts2Sim.S0.ObservableState.Extended = GetI("fp_ext", 1) == 1;
 // obs=5 (2026-11-15): relic counters in the masked v5 slots (the live v3 network is bit-exact); obs=6 also corrects the
 // enemy intent damage (an existing slot, so only for a retrained network). Default 4 keeps the pre-v5 input bit for bit.
 int obsVersion = GetI("obs", 4);
 CombatObservation.RelicCounters = obsVersion >= 5;
 CombatObservation.ModifiedIntentDamage = obsVersion >= 6 || GetI("intent_damage", 0) == 1;
-var mvocab = new MacroVocab(Get("mvocab", "research/s3/data/macro_vocab.json"));
+var mvocab = new MacroVocab(Get("mvocab", "src/s3/data/macro_vocab.json"));
 var cfg = new AgentConfig
 {
     Ascension = GetI("ascension", 10), SimsFull = GetI("sims_full", 64), SimsFast = GetI("sims_fast", eval ? GetI("sims_full", 64) : 16),
@@ -135,7 +135,7 @@ if (kv.ContainsKey("tf_dump"))
     services.TfDumpK = GetI("tf_dump_k", 20);
 }
 var runWriter = !eval && kv.ContainsKey("mdata") ? new RunChunkWriter(Get("mdata", ""), tag, GetI("mchunk", 16)) : null;
-string outPath = Get("out", $"research/s3/out/{tag}.jsonl");
+string outPath = Get("out", $"src/s3/out/{tag}.jsonl");
 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
 using var log = new StreamWriter(outPath, append: true);
 StreamWriter? fightLog = kv.ContainsKey("fights") ? new StreamWriter(Get("fights", ""), append: true) : null;

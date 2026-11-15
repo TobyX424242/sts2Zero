@@ -10,7 +10,7 @@ last-act runs die, and from the fight logs read: potions used per last-act hallw
 of last-act elite fights. Added 2026-11-14: the win rate alone hid that at A10 the share of act-3 runs reaching the boss
 fell from 73% to 55% over four segments while both boss win rates rose.
 
-Usage: python3 research/s3/curve_runs.py RUN_DIR [RUN_DIR ...] [--buckets 8] [--asc 10] [--fight-files 3]
+Usage: python3 src/s3/curve_runs.py RUN_DIR [RUN_DIR ...] [--buckets 8] [--asc 10] [--fight-files 3]
 """
 import argparse, glob, json, os
 

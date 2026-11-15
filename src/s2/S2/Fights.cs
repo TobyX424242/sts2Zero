@@ -165,7 +165,7 @@ public static class FightRunner
 }
 
 /// <summary>
-/// Training-data chunks for research/s2/py/train_combat.py. One file per chunk, written as .tmp and renamed:
+/// Training-data chunks for src/s2/py/train_combat.py. One file per chunk, written as .tmp and renamed:
 /// <code>
 /// header 64 bytes: "S2DATA01", i32 version (2), i32 n, i32 T, i32 token width, i32 A, i32 action width, i32 meta width
 /// obs  int16[n, T, token width]   act int16[n, A, action width]   policy float32[n, A] (zeros if none)

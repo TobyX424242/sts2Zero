@@ -3,7 +3,7 @@
 A death is placed by the run's lost fight in the fight log (room type, act from `act`, encounter); a lost run without a
 lost fight is counted as "other" (event or non-combat death). Act 3 bosses at A10 are split into boss 1 and boss 2.
 
-Usage: python -I research/s3/asc_sweep_report.py OUTDIR   (OUTDIR/aNN/tf64.jsonl and tf64_fights.jsonl)
+Usage: python -I src/s3/asc_sweep_report.py OUTDIR   (OUTDIR/aNN/tf64.jsonl and tf64_fights.jsonl)
 """
 import collections, glob, json, math, os, sys
 

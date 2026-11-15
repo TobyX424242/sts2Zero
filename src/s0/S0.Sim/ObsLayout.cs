@@ -6,7 +6,7 @@ using Sts2Sim.Core.MonsterMoves.Intents;
 namespace Sts2Sim.S0;
 
 /// <summary>
-/// Frozen integer layout (v4 shape; v5 values opt-in) of the combat observation (mirrored in research/s0/py/combat_obs.py).
+/// Frozen integer layout (v4 shape; v5 values opt-in) of the combat observation (mirrored in src/s0/py/combat_obs.py).
 /// <para>Observation: int32[<see cref="MaxTokens"/>, <see cref="TokenWidth"/>]; row = [kind, id, id2, f0..f7].
 /// <c>id</c> indexes the vocabulary of the token kind's category (hand/draw/discard/exhaust: card; enemy: monster;
 /// enemy/player power: power; orb: orb; potion: potion; relic: relic; global: 0), <c>id2</c> the secondary category
@@ -23,7 +23,7 @@ namespace Sts2Sim.S0;
 /// config "ext" multiply the features by the v3 slot mask, so they see exactly their v3 input; v3 chunks have zeros
 /// there.</para>
 /// <para>v3 (2026-11-11): optional Context token (kind 12) right after the global token, features from the fight's T_f table
-/// (research/s2/S2/Evaluator.cs FightSignals); potion tokens' feature 1 = the potion's marginal T_f.</para>
+/// (src/s2/S2/Evaluator.cs FightSignals); potion tokens' feature 1 = the potion's marginal T_f.</para>
 /// <para>v5 (2026-11-15, opt-in, no shape change): Enemy f5 may carry the intent damage after Strength / Weak /
 /// Vulnerable (<see cref="CombatObservation.ModifiedIntentDamage"/>) and Relic f0/f1 the relic counters
 /// (<see cref="CombatObservation.RelicCounters"/>). The Python mask keeps the relic slots out of v3/v4 networks; the

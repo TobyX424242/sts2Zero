@@ -24,7 +24,7 @@ public enum TokenKind : byte
 public readonly record struct ObsToken(TokenKind Kind, string Id, string Id2, int[] F);
 
 /// <summary>
-/// C# encoder for the combat network (layout v5, <see cref="ObsLayout"/>; mirrored in research/s0/py/combat_obs.py).
+/// C# encoder for the combat network (layout v5, <see cref="ObsLayout"/>; mirrored in src/s0/py/combat_obs.py).
 /// Only player-observable information is used: the draw pile is a multiset (plus the known top run tracked by the
 /// S0 CardPile patch), never its order.
 /// <code>
@@ -44,7 +44,7 @@ public readonly record struct ObsToken(TokenKind Kind, string Id, string Id2, in
 /// Tokens are emitted in this kind order, multisets sorted by id, and the list is truncated/padded to
 /// <c>maxTokens</c> (relics are dropped first when truncating).
 /// <para>* = layout v4 (2026-11-15), in slots that were always 0 in v3 (networks built without "ext" mask them out,
-/// research/s0/py/combat_obs.py V4_SLOTS): damage / block = the card's current own values (<see cref="CardValues"/>:
+/// src/s0/py/combat_obs.py V4_SLOTS): damage / block = the card's current own values (<see cref="CardValues"/>:
 /// upgrades and permanent or in-fight changes such as Claw or Wither growth; no Strength/Dexterity/Vulnerable);
 /// hidden counter = <see cref="PowerCounters"/> (e.g. WitheringPresence: cards left before the next Wither), 0 for
 /// powers without one. Pile multisets: by default the grouping is the v3 one (id, upgrade, enchantment[, known

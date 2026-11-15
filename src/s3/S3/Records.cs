@@ -60,7 +60,7 @@ public sealed class RunRecord
 }
 
 /// <summary>
-/// Macro training chunks for research/s3/py/train_macro_s3.py. One file per chunk, written as .tmp and renamed:
+/// Macro training chunks for src/s3/py/train_macro_s3.py. One file per chunk, written as .tmp and renamed:
 /// <code>
 /// header 64 bytes: "S3RUNS01", i32 version (1), i32 runs R, i32 rows N, i32 IW, i32 FW, i32 run-meta width, i32 row-meta width
 /// run meta int32[R, 16]: seed lo, seed hi, ascension, won, floors, act index, final HP, max HP, perturbed, first row,

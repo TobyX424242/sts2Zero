@@ -1,4 +1,4 @@
-"""Combat network construction and checkpoints for S2 (model class: research/s0/py/combat_obs.py CombatNet).
+"""Combat network construction and checkpoints for S2 (model class: src/s0/py/combat_obs.py CombatNet).
 
 Checkpoint = {"state_dict", "config": {"d", "layers", "heads", "head"[, "ext"]}, "version": int (bumped by the trainer on
 every save)}.

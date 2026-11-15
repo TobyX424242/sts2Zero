@@ -2,7 +2,7 @@
 # CUDA MPS control daemon for S3 training segments (opt-in: MPS=1 for run_s3.sh, e.g. in the chain's extra.env).
 # With MPS the inference servers and trainers of a segment share one MPS server, so their kernels run concurrently on
 # the GPU instead of time-slicing between separate contexts.
-# usage: research/s3/mps.sh start|status|stop [DIR]      DIR default /tmp/s3_mps (pipe DIR/pipe, logs DIR/log; keep it
+# usage: src/s3/mps.sh start|status|stop [DIR]      DIR default /tmp/s3_mps (pipe DIR/pipe, logs DIR/log; keep it
 #        short: the control socket path must stay below 108 characters, a long path makes the daemon fail silently)
 #   start   start the daemon unless one already answers on DIR/pipe (under a lock: never two daemons), then check that
 #           a CUDA client works through it (torch, 120 s timeout). Exit 0 = usable: clients must run with

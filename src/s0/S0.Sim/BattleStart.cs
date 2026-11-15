@@ -18,7 +18,7 @@ public sealed record BattleCard(
     [property: JsonPropertyName("enchantment")] string? Enchantment,
     [property: JsonPropertyName("enchantment_amount")] int EnchantmentAmount);
 
-/// <summary>A fight start as written by research/s0/export_battle_starts.py (state after floor g-1, fight of floor g).</summary>
+/// <summary>A fight start as written by src/s0/export_battle_starts.py (state after floor g-1, fight of floor g).</summary>
 public sealed record BattleStartSpec
 {
     [JsonPropertyName("id")] public string Id { get; init; } = "";

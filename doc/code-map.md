@@ -17,7 +17,7 @@ src/
     export_battle_starts.py  human floor -> battle-start JSON
     make_tf_tables.py        battle-start -> T_f table (S1 ensemble)
     analyze_m1.py            M1 summary
-  s1/                        macro warm start (formerly value_v2)
+  s1/                        macro warm start
     build_dataset_v2.py      per-floor dataset
     build_decisions_v2.py    decision dataset for the policy head
     train_value_v2.py        value model (+ _r1 frozen version)
@@ -41,8 +41,6 @@ src/
     data/                    macro_vocab.json, boss2_w2.json (small, redistributable)
 ```
 
-`src/value_v2` is a symlink to `src/s1` for the original imports. `research/` at the repository root is a symlink
-to `src/` for the historical `research/...` paths inside the code and comments. All new work should use `src/`.
 
 ## Entry points
 
@@ -117,9 +115,8 @@ redistributed:
 | S3 chunks `*.s2d`, `*.s3r` | S3 actors | S2/S3 trainers |
 | S3 checkpoints | S3 trainers | evaluation |
 
-The S3 code defaults still use the historical paths (`research/s3/data/macro_s1.pt`,
-`research/s3/weights/combat_s2p1.pt`); the `research` symlink makes them resolve to `src/`. If you put a checkpoint
-there, or pass the path explicitly, no code change is needed.
+The S3 code defaults are `src/s3/data/macro_s1.pt` and `src/s3/weights/combat_s2p1.pt`; put checkpoints
+there or pass the paths explicitly.
 
 ## Environment variables used by the launchers
 

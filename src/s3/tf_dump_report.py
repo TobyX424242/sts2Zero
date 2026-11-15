@@ -9,7 +9,7 @@ Per fight kind (hallway fight of act 1/2/3; act-3 boss: first of two, final), at
   hp_eq    the potion in HP: h - min{h' : T(h', all) >= T(h, all without it)} (unchanged by F1)
 Tables get free disposal as in TfScorer.
 
-usage: python -I research/s3/tf_dump_report.py ALPHA BOSS2.json DUMP.jsonl [DUMP.jsonl ...]
+usage: python -I src/s3/tf_dump_report.py ALPHA BOSS2.json DUMP.jsonl [DUMP.jsonl ...]
 """
 import json, math, sys
 from collections import defaultdict

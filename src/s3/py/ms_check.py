@@ -5,7 +5,7 @@ with random milestone heads,
   (2) the blend is non-decreasing in HP for every row and lies between the banked progress and 1;
   (3) the blend's limits: every head 1 -> 1, every head 0 -> the banked progress;
   (4) the trainer's labels: the share of rows per stage and head that train it, and the labels' means.
-usage: python -I research/s3/py/ms_check.py <chunk dir> <macro.pt>"""
+usage: python -I src/s3/py/ms_check.py <chunk dir> <macro.pt>"""
 import glob, os, sys
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE)
 import numpy as np, torch

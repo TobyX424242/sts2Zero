@@ -26,8 +26,8 @@ public sealed class UniformMacroEvaluator : IMacroEvaluator
 }
 
 /// <summary>
-/// Shared-memory client of the macro half of research/s3/py/s3_server.py. Same ping-pong protocol as the combat
-/// bridge (research/s0/S0.Sim/Bridge.cs): the server creates the file; the client writes rows and publishes a
+/// Shared-memory client of the macro half of src/s3/py/s3_server.py. Same ping-pong protocol as the combat
+/// bridge (src/s0/S0.Sim/Bridge.cs): the server creates the file; the client writes rows and publishes a
 /// request sequence number; the server answers and publishes the response sequence number.
 /// <code>
 ///   0  u64 magic "S3MACRO1"      8 i32 capacity B   12 i32 IW   16 i32 FW   20 i32 OW

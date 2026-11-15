@@ -1,4 +1,4 @@
-"""Shared-memory evaluation server, protocol v1 (client: research/s0/S0.Sim/Bridge.cs; layout described there).
+"""Shared-memory evaluation server, protocol v1 (client: src/s0/S0.Sim/Bridge.cs; layout described there).
 
 Creates the bridge file, writes the header (magic last), then serves requests: spin on the request sequence number,
 run CombatNet on the first n rows (GPU if available), write [policy logits (A), P(survive) logit, relative T_f]
@@ -6,8 +6,8 @@ per row, publish the response sequence number. Weights: --weights PATH is loaded
 and re-loaded between batches when its mtime changes (write a new checkpoint to a temp name and rename it over
 PATH); every load bumps the model version, which is written to the header and echoed with each response.
 
-Usage: ./.venv/bin/python -I research/s0/py/bridge_server.py [--path /dev/shm/s0_bridge] [--capacity 1024]
-           [--vocab research/s0/data/combat_vocab_v1.json] [--weights PATH] [--device cuda] [--fp16]
+Usage: ./.venv/bin/python -I src/s0/py/bridge_server.py [--path /dev/shm/s0_bridge] [--capacity 1024]
+           [--vocab src/s0/data/combat_vocab_v1.json] [--weights PATH] [--device cuda] [--fp16]
 """
 import argparse, mmap, os, struct, sys, time
 

@@ -1,12 +1,12 @@
-"""Multi-actor inference server for S2 (bridge protocol v1, client research/s0/S0.Sim/Bridge.cs).
+"""Multi-actor inference server for S2 (bridge protocol v1, client src/s0/S0.Sim/Bridge.cs).
 
-Creates one shared-memory file per actor (<prefix><i>), each with the header of research/s0/py/bridge_server.py.
+Creates one shared-memory file per actor (<prefix><i>), each with the header of src/s0/py/bridge_server.py.
 Loop: poll every actor's request sequence number; concatenate all ready requests into one batch, pad it to a fixed
 bucket size (so CUDA graphs / torch.compile see few shapes), run CombatNet once, write each actor's rows back and
 publish its response. Weights are re-loaded between batches when the --weights file changes (write + rename).
 
-Usage: python -I research/s2/py/infer_server.py --prefix /dev/shm/s2_a --actors 16 [--capacity 256]
-           [--weights research/s2/runs/X/weights.pt] [--compile] [--dtype bf16|fp16|fp32]
+Usage: python -I src/s2/py/infer_server.py --prefix /dev/shm/s2_a --actors 16 [--capacity 256]
+           [--weights src/s2/runs/X/weights.pt] [--compile] [--dtype bf16|fp16|fp32]
 """
 import argparse, mmap, os, struct, sys, time
 

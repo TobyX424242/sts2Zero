@@ -1,7 +1,7 @@
 """Offline value calibration of a macro ensemble on stored macro chunks (*.s3r, decompressed), per member, per ascension
 group (A0-8, A9, A10) and act: mean predicted value vs mean outcome on floor rows (the trainer's V1 diagnostic, offline).
 
-usage: python -I research/s3/value_calib.py MACRO.pt ALPHA CHUNK.s3r [CHUNK.s3r ...] [--cpu] [--split K]
+usage: python -I src/s3/value_calib.py MACRO.pt ALPHA CHUNK.s3r [CHUNK.s3r ...] [--cpu] [--split K]
   ALPHA   the outcome's alpha (macro_train_log.jsonl "alpha"; or a path to that file: its last alpha)
   --split K  also report chunks with sequence number < K and >= K separately (a<actor>_<seq>.s3r: early vs late)
 """

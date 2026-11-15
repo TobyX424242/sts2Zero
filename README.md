@@ -65,11 +65,10 @@ state. Training continues, but it is not an exact continuation of the original c
 ```text
 sts2Zero/
   README.md
-  research -> src            # compatibility symlink; historical research/... paths still resolve
   src/
     sims/iRyougi-sts2-sim/   # simulator source, MIT, patched (see src/sims/NOTICE.md)
     s0/                      # simulator extensions: resampling clone, action space, encoders, bridge
-    s1/                      # macro-network warm start (src/value_v2 is a compatibility symlink)
+    s1/                      # macro-network warm start
     value_v1/                # shared reconstruction + base trainer used by S1/S2/S3
     s2/                      # combat network + Gumbel search, warm start on human battle starts
     s3/                      # full-game self-play: macro + combat training on the agent's own runs
@@ -78,8 +77,7 @@ sts2Zero/
 ```
 
 `src/` keeps the original relative layout, so the C# project references and the Python `sys.path` inserts work
-unchanged. `research/` at the repository root is a symlink to `src/` only so historical commands and comments keep
-working. New work should use `src/`.
+unchanged.
 
 ## Build
 

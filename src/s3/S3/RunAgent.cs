@@ -82,7 +82,7 @@ public sealed class AgentConfig
 }
 
 /// <summary>W2: chance of winning the second act-3 boss given the HP share and the number of potions held at its start,
-/// a logistic fitted on self-play logs by research/s3/fit_boss2.py (JSON: b0, b_hp, b_pot, b_hp2, pot_cap).</summary>
+/// a logistic fitted on self-play logs by src/s3/fit_boss2.py (JSON: b0, b_hp, b_pot, b_hp2, pot_cap).</summary>
 public sealed class Boss2Model
 {
     public double B0, BHp, BPot, BHp2;
@@ -151,7 +151,7 @@ public sealed class ActorServices
 
 /// <summary>
 /// The S3 agent for one run (PROPOSAL.md §6.5): every out-of-combat decision goes to the macro policy, every fight is
-/// played by the network-guided search (research/s2 NetSearch) on the live combat, scored by a T_f table built at the
+/// played by the network-guided search (src/s2 NetSearch) on the live combat, scored by a T_f table built at the
 /// fight start from the current macro value network (V_run of the post-fight state, §4.2).
 /// <para>Macro decisions and how they are made: card rewards, Ancient choices, rest-site options, smith and removal
 /// targets and shop purchases by the S1-trained heads; map points and event options by heads that start uniform

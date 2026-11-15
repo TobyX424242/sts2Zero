@@ -9,7 +9,7 @@ namespace Sts2Sim.Core.Entities.Cards;
 /// 反向依赖 Player。
 /// </summary>
 /// <remarks>
-/// S0 patch (research/s0/iryougi_s0.patch): a draw pile also tracks how many cards at its top and at its
+/// S0 patch (src/s0/iryougi_s0.patch): a draw pile also tracks how many cards at its top and at its
 /// bottom sit at positions the player can know (cards placed there deterministically since the last random
 /// reorder). The counters never change game behaviour; a resampling search clone keeps those cards in place
 /// and reshuffles only the cards in between. Rules: a random reorder or a random-position insert forgets all

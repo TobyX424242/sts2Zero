@@ -24,7 +24,7 @@ double GetD(string k, double d) => double.Parse(Get(k, d.ToString(System.Globali
 string mode = Get("mode", "selfplay");
 bool eval = mode == "eval";
 string tag = Get("tag", "a0");
-var vocab = ObsLayout.Vocab.Load(Get("vocab", "research/s0/data/combat_vocab_v1.json"));
+var vocab = ObsLayout.Vocab.Load(Get("vocab", "src/s0/data/combat_vocab_v1.json"));
 // obs=5 (2026-11-15): relic counters in the masked v5 slots; obs=6 also corrects the intent damage (existing slot).
 int obsVersion = GetI("obs", 4);
 CombatObservation.RelicCounters = obsVersion >= 5;
@@ -32,12 +32,12 @@ CombatObservation.ModifiedIntentDamage = obsVersion >= 6 || GetI("intent_damage"
 // shard=i/N: this actor uses only the battle starts with line index % N == i (and loads only their tables)
 string[] shard = Get("shard", "0/1").Split('/');
 int shardI = int.Parse(shard[0]), shardN = int.Parse(shard[1]);
-var specLines = File.ReadLines(Get("starts", "research/s0/data/battle_starts_v0.111.0_defect_998.jsonl"))
+var specLines = File.ReadLines(Get("starts", "src/s0/data/battle_starts_v0.111.0_defect_998.jsonl"))
     .Where(l => !string.IsNullOrWhiteSpace(l)).Where((l, i) => i % shardN == shardI).ToList();
 var allSpecs = specLines.Select(l => JsonSerializer.Deserialize<BattleStartSpec>(l)!).ToList();
 var ids = allSpecs.Select(s => s.Id).ToHashSet(StringComparer.Ordinal);
 TfScorer.RepriceMode = Get("reprice", "");
-var tf = new TfScorer(Get("tables", "research/s0/data/tf_tables_v0.111.0_defect_1000.jsonl"), ids.Contains);
+var tf = new TfScorer(Get("tables", "src/s0/data/tf_tables_v0.111.0_defect_1000.jsonl"), ids.Contains);
 var specs = allSpecs.Where(s => tf.Has(s.Id)).ToList();
 specLines = null; allSpecs = null;
 var scfg = new NetSearchConfig
@@ -63,7 +63,7 @@ if (bridgePath == "uniform") net = new UniformEvaluator();
 else net = bridge = new BridgeEvaluator(bridgePath, vocab);
 if (bridge is not null && concurrent > bridge.Capacity) concurrent = bridge.Capacity;
 var writer = kv.ContainsKey("data") ? new ChunkWriter(Get("data", ""), tag, GetI("chunk", 4096)) : null;
-string outPath = Get("out", $"research/s2/out/{tag}.jsonl");
+string outPath = Get("out", $"src/s2/out/{tag}.jsonl");
 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
 using var log = new StreamWriter(outPath, append: true);
 var rng = new Random((int)(seed % int.MaxValue));
@@ -73,7 +73,7 @@ Console.WriteLine($"[{tag}] mode {mode}, {specs.Count} battle starts with tables
 
 if (mode == "human")
 {
-    // Human fight outcomes (research/s3/py/human_rows_prep.py adds h_surv and h_end_hp to the start lines): the first
+    // Human fight outcomes (src/s3/py/human_rows_prep.py adds h_surv and h_end_hp to the start lines): the first
     // decision of each battle start, encoded as the actors encode it, labelled with the logged human outcome; no policy
     // target, held-slot mask 0 (no potion labels). Writes one chunk row per start to data=DIR. Use match=1.
     var hum = new Dictionary<string, (bool Surv, int Hp)>(StringComparer.Ordinal);

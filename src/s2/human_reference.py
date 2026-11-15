@@ -3,7 +3,7 @@ starting belt still held after floor g, death if the run ended on floor g withou
 tables the agent is scored by (free disposal applied, relative to the table maximum). Caveats: HP after the floor
 includes post-fight healing (relics such as Burning Blood); a belt potion drunk and re-gained as a reward counts as
 held; the human fought the real fight, the agent a simulated one with its own draws (same in expectation).
-Usage: ./.venv/bin/python -I research/s2/human_reference.py <dir with starts.jsonl tables.jsonl and agent arm jsonl> <runs.jsonl.gz> [arms...]
+Usage: ./.venv/bin/python -I src/s2/human_reference.py <dir with starts.jsonl tables.jsonl and agent arm jsonl> <runs.jsonl.gz> [arms...]
 """
 import gzip, json, math, os, sys
 from collections import Counter

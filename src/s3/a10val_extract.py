@@ -5,7 +5,7 @@ segment and writes one compact .npz: per run (ascension, outcome, bosses won, ki
 published ensemble gave that row at play time, the scalar state features, room/encounter ids), plus deck / relic /
 potion ids of the floor rows. The recorded value is out of sample: it was computed before the trainer saw the run.
 
-Usage: python -I research/s3/a10val_extract.py <chunk dir> <segment meta dir (with runs/*.jsonl)> <out.npz>
+Usage: python -I src/s3/a10val_extract.py <chunk dir> <segment meta dir (with runs/*.jsonl)> <out.npz>
 """
 import glob, json, os, subprocess, sys
 import numpy as np

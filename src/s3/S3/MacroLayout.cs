@@ -8,8 +8,8 @@ using Sts2Sim.Core.Runs;
 namespace Sts2Sim.S3;
 
 /// <summary>
-/// Macro-network row layout, shared with research/s3/py/macro_s3.py (see its header) and the run records.
-/// A row is the state after a floor in the conventions of the S1 dataset (research/value_v1/build_floor_dataset.py:
+/// Macro-network row layout, shared with src/s3/py/macro_s3.py (see its header) and the run records.
+/// A row is the state after a floor in the conventions of the S1 dataset (src/value_v1/build_floor_dataset.py:
 /// floor g counted from the Ancient of act 1 = 1, room type = the map point's type, encounter = the model id of the
 /// floor's first room, card age = g - floor added, damage/heal/turn scalars zero), optionally followed by one decision
 /// (type + up to <see cref="K"/> options, or a choice among deck slots).
@@ -244,7 +244,7 @@ public static class MacroEncoder
         r.F[ML.SDeck] = deck.Count / 40f; r.F[ML.SUpg] = nUpg / 20f; r.F[ML.SEnch] = nEnch / 10f; r.F[ML.SRelics] = relics.Count / 20f;
     }
 
-    /// <summary>Median gold reward by room type measured on human fights (research/s0/make_tf_tables.py GOLD).</summary>
+    /// <summary>Median gold reward by room type measured on human fights (src/s0/make_tf_tables.py GOLD).</summary>
     public static float ExpectedGold(RoomType t) => t switch { RoomType.Elite => 32f, RoomType.Boss => 75f, _ => 13f };
 
     /// <summary>

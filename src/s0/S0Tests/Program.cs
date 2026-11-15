@@ -1,4 +1,4 @@
-// S0 tests (research/s0/README.md). Single-threaded console runner, one subcommand per test:
+// S0 tests (src/s0/README.md). Single-threaded console runner, one subcommand per test:
 //   resample <runs> <maxStates> <seedPrefix> [hpBoost=3000]    deliverable 1: tests (a)-(d)
 //   choices  <runs> <K> <D> <seedPrefix> [hpBoost=3000]        deliverable 2: SimBench rollouts with/without the source
 //   import   <battle_starts.jsonl> <maxSpecs> [simSeed=S0]      deliverable 3: import + random play to the end
@@ -25,7 +25,7 @@ return cmd switch
     "import" => await ImportTests.Run(args[1], int.Parse(args[2]), args.Length > 3 ? args[3] : "S0"),
     "m1" => await M1Runner.Run(args),
     "bridge" => BridgeBench.Run(args),
-    "encode" => await EncodeExport.Run(int.Parse(args[1]), int.Parse(args[2]), args[3], args.Length > 4 ? args[4] : "research/s0/data/combat_vocab_v1.json"),
+    "encode" => await EncodeExport.Run(int.Parse(args[1]), int.Parse(args[2]), args[3], args.Length > 4 ? args[4] : "src/s0/data/combat_vocab_v1.json"),
     "obsv4" => await ObsV4Test.Run(args),
     "obsv5" => await ObsV5Test.Run(args),
     "actions" => await ActionTests.Run(int.Parse(args[1]), int.Parse(args[2]), int.Parse(args[3]), int.Parse(args[4]), args[5], args.Length > 6 ? int.Parse(args[6]) : 3000),

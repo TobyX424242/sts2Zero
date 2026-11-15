@@ -1,10 +1,10 @@
 """Round trip of the macro encoder (S3_HANDOVER §9.1): the rows the C# encoder produced for the state after every floor
 of simulated runs (S3 encode ...: rows.jsonl) against the examples the S1 dataset builder
-(research/value_v1/build_floor_dataset.py) rebuilds from the same runs written as Spire Codex style run records
+(src/value_v1/build_floor_dataset.py) rebuilds from the same runs written as Spire Codex style run records
 (runs.jsonl). Decks, relics and potions are compared as multisets (the networks are set encoders), context and scalars
 exactly, and the S1 network's value on both encodings.
 
-Usage: ./.venv/bin/python -I research/s3/py/roundtrip_macro.py research/s3/out/encode
+Usage: ./.venv/bin/python -I src/s3/py/roundtrip_macro.py src/s3/out/encode
 """
 import collections, json, os, sys
 

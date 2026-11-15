@@ -1,7 +1,7 @@
 """Round trip C# encoder -> Python decoder (layout v3 or v4: features are compared as written, every slot), plus a
 CombatNet forward pass.
 
-Usage: ./.venv/bin/python -I research/s0/py/test_roundtrip.py [obs_dir] [vocab.json]
+Usage: ./.venv/bin/python -I src/s0/py/test_roundtrip.py [obs_dir] [vocab.json]
 Checks, per state: the decoded token multisets (per kind: id, id2, features) equal the C# originals in check.jsonl;
 the action rows match the C# action list (count, kind, source/target token kinds). Then runs CombatNet (CPU) on
 all states and checks shapes, masking and finiteness.

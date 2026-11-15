@@ -1,7 +1,7 @@
 # S2: combat network + network-guided search (PROPOSAL.md §6.4)
 
-Builds on `research/s0` (iRyougi + S0 patch, resampling clone, action space, encoder, bridge). Observation layout v3
-(`research/s0/S0.Sim/ObsLayout.cs`, mirrored in `research/s0/py/combat_obs.py`).
+Builds on `src/s0` (iRyougi + S0 patch, resampling clone, action space, encoder, bridge). Observation layout v3
+(`src/s0/S0.Sim/ObsLayout.cs`, mirrored in `src/s0/py/combat_obs.py`).
 
 | Path | Content |
 |---|---|
@@ -43,7 +43,7 @@ Training chunks are version 2 (meta width 12: end-HP bin, held-slot masks at the
 ```bash
 W=$(pwd)  # repository root; cd $W
 export NUGET_PACKAGES=$W/.cache/nuget DOTNET_CLI_HOME=$W/.cache/dotnet DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 TMPDIR=$W/.cache/tmp
-dotnet build research/s2/S2/S2.csproj -c Release -m:8
-research/s2/run_selfplay.sh NAME 16 3600                      # self-play training, 16 actors, 1 hour
-research/s2/eval_ckpt.sh research/s2/runs/NAME/weights.pt research/s2/out/eval_NAME 8 "net:0 s16:16 s64:64 ot64:64:oneturn=1 ex64:64:exact=1"
+dotnet build src/s2/S2/S2.csproj -c Release -m:8
+src/s2/run_selfplay.sh NAME 16 3600                      # self-play training, 16 actors, 1 hour
+src/s2/eval_ckpt.sh src/s2/runs/NAME/weights.pt src/s2/out/eval_NAME 8 "net:0 s16:16 s64:64 ot64:64:oneturn=1 ex64:64:exact=1"
 ```

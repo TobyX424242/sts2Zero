@@ -1,4 +1,4 @@
-"""Combat batches of research/s3/py/s3_server.py with CUDA graphs and/or two batches in flight (options --graphs and
+"""Combat batches of src/s3/py/s3_server.py with CUDA graphs and/or two batches in flight (options --graphs and
 --overlap; both off by default, then the server does not use this module at all).
 
 Per batch (one "slot" = pinned host buffers for inputs and outputs, device staging buffers and two CUDA events):

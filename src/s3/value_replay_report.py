@@ -1,10 +1,10 @@
-"""Compares the arms of research/s3/value_replay.sh: fresh-run value loss (measured before each update) against the
+"""Compares the arms of src/s3/value_replay.sh: fresh-run value loss (measured before each update) against the
 constant and the 9-cell table, training loss, explained variance and member spread, over the last third of the replay.
 Then, per arm: the value minus the outcome on fresh runs by ascension group and act (mean of the members' probabilities;
 the row mix of the value window shows here), and from the trainer's `value_cells` the share of the room above the cell
 mean the value takes, the in-floor AUC for the next milestone and for the run win, and the share of act-3 values below
 the banked progress.
-usage: python -I research/s3/value_replay_report.py OUT ARM [ARM ...] [--from FRACTION]   (default: last third)
+usage: python -I src/s3/value_replay_report.py OUT ARM [ARM ...] [--from FRACTION]   (default: last third)
 """
 import json, os, sys
 

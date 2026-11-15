@@ -1,6 +1,6 @@
 """A10 analysis, act-3 bosses from fight logs (2026-11-14). Statistics only.
 (1) boss 1 won fights at A10: the table's score at the fight's end against the real chance of then winning boss 2;
-(2) win rates by boss identity. Usage: python -I research/s3/a10val_boss.py <fights dir> <runs dir> [alpha]"""
+(2) win rates by boss identity. Usage: python -I src/s3/a10val_boss.py <fights dir> <runs dir> [alpha]"""
 import collections, glob, json, os, sys
 
 fdir, rdir = sys.argv[1:3]

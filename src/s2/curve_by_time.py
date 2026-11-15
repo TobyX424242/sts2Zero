@@ -2,10 +2,10 @@
 was saved (train_log.jsonl), then averages fights per 10-minute bucket. Usage: python3 curve_by_time.py RUN [RUN...]"""
 import glob, json, sys, collections
 for run in sys.argv[1:]:
-    tl = [json.loads(l) for l in open(f"research/s2/runs/{run}/train_log.jsonl")]
+    tl = [json.loads(l) for l in open(f"src/s2/runs/{run}/train_log.jsonl")]
     vt = {r["version"]: r["t"] for r in tl}
     b = collections.defaultdict(list)
-    for f in glob.glob(f"research/s2/runs/{run}/fights/*.jsonl"):
+    for f in glob.glob(f"src/s2/runs/{run}/fights/*.jsonl"):
         for l in open(f):
             try: r = json.loads(l)
             except Exception: continue

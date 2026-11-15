@@ -3,9 +3,7 @@
 The macro network predicts the run outcome V_run = P(win) from the state after a floor and a policy over the
 out-of-combat choices. S1 is the warm start; S3 retrains the same network on the agent's own runs.
 
-Code origin: the working tree's `value_v2` stage. The directory is named `s1` here; `src/value_v2` is a
-compatibility symlink for the original imports. The shared reconstruction and base trainer live in
-`src/value_v1`.
+The shared reconstruction and base trainer live in `src/value_v1`.
 
 | File | What |
 |---|---|

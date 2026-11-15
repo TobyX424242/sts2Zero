@@ -1,7 +1,7 @@
 """Held-out losses of combat checkpoints (IMPROVEMENT_PLAN.md change C): the same losses as train_combat.py, measured
 on chunks no trainer learned from (train_combat.py --skip-every K holds out chunks whose sequence number % K == 0).
 
-usage: python -I research/s2/py/combat_heldout.py --data DIR --skip-every K [--max N] ARM=CKPT_OR_DIR [ARM=...]
+usage: python -I src/s2/py/combat_heldout.py --data DIR --skip-every K [--max N] ARM=CKPT_OR_DIR [ARM=...]
   CKPT_OR_DIR: a checkpoint (.pt) or a directory of checkpoints (every v*.pt in it, plus weights.pt if present)
 Prints one line per checkpoint: arm, version, steps of the trainer if known, policy KL to the search target, top-1
 agreement, end-HP loss, survival log loss, end-HP mean abs error, potion-kept loss.

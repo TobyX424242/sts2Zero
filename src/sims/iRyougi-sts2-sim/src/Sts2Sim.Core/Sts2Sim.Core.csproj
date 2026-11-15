@@ -19,7 +19,7 @@
     <InternalsVisibleTo Include="SimFuzz" />
     <InternalsVisibleTo Include="Sts2Sim.Solver.Tests" />
     <InternalsVisibleTo Include="SolverDiff" />
-    <!-- S0 patch: research/s0 search extensions -->
+    <!-- S0 patch: src/s0 search extensions -->
     <InternalsVisibleTo Include="Sts2Sim.S0" />
     <InternalsVisibleTo Include="S0Tests" />
   </ItemGroup>

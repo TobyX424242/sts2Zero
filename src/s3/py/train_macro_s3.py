@@ -1,6 +1,6 @@
 """S3 macro trainer (PROPOSAL.md §6.5): PPO for the macro policy and V_run on the agent's own run outcomes.
 
-Reads the run chunks written by the C# actors (research/s3/S3/Records.cs RunChunkWriter, *.s3r) and publishes the macro
+Reads the run chunks written by the C# actors (src/s3/S3/Records.cs RunChunkWriter, *.s3r) and publishes the macro
 ensemble file the inference server reloads (macro_s3.Ensemble: member 0 is the policy member).
 
 Per iteration (every --runs-per-iter new runs):
@@ -53,7 +53,7 @@ Offline replay (--replay LIST): read the *.s3r files named in LIST (one path per
 watching --mdata; files are not moved or deleted; the trainer exits when the list is used up. With --value-only this
 replays a stored run through the value trainer (the logged fresh-run loss is measured before each update).
 
-Usage: python -I research/s3/py/train_macro_s3.py --mdata DIR --macro OUT.pt [--init research/s3/data/macro_s1.pt]
+Usage: python -I src/s3/py/train_macro_s3.py --mdata DIR --macro OUT.pt [--init src/s3/data/macro_s1.pt]
 """
 import argparse, glob, json, math, os, signal, sys, time
 

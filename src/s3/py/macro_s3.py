@@ -1,4 +1,4 @@
-"""S3 macro network: the S1 MacroNet (research/value_v2/train_macro_v2.py) extended for full-game self-play.
+"""S3 macro network: the S1 MacroNet (src/s1/train_macro_v2.py) extended for full-game self-play.
 
 Additions to S1 (all new parameters start at zero, so an S1 checkpoint loads into this class with unchanged outputs
 on everything S1 covered, and the new decision types start as a uniform policy):
@@ -11,7 +11,7 @@ on everything S1 covered, and the new decision types start as a uniform policy):
   - rest-site options are ordinary options of kind 4 (special vocabulary "REST:<NAME>"), which is the same function
     S1 used for its rest logits, restricted to the options actually offered.
 
-Row layout shared with the C# actor (research/s3/S3/MacroLayout.cs) and the run records:
+Row layout shared with the C# actor (src/s3/S3/MacroLayout.cs) and the run records:
   ints  [IW = 460]: d_ids 64, d_upg 64, d_ench 64, d_eamt 64, d_age 64, r_ids 40, r_age 40, p_ids 5, ctx 6, dtype 1,
                     opt_kind 16, opt_id 16, opt_upg 16
   floats[FW = 208]: scal 16, opt_feat 16 x 12
@@ -37,7 +37,7 @@ import os, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, "..", "..")
-sys.path.insert(0, os.path.join(ROOT, "value_v1")); sys.path.insert(0, os.path.join(ROOT, "value_v2"))
+sys.path.insert(0, os.path.join(ROOT, "value_v1")); sys.path.insert(0, os.path.join(ROOT, "s1"))
 sys.dont_write_bytecode = True
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
@@ -201,7 +201,7 @@ def load_checkpoint(path, dev):
 
 
 def s1_member_dirs():
-    base = os.path.join(ROOT, "value_v2", "runs", "macro")
+    base = os.path.join(ROOT, "s1", "runs", "macro")
     return [os.path.join(base, "noattn_light")] + [os.path.join(base, f"noattn_light_seed{i}") for i in range(1, 5)]
 
 
@@ -309,7 +309,7 @@ class Ensemble:
 
 
 def export_vocab(path, vocab, special):
-    """Vocabulary for the C# encoder (research/s3/S3/MacroLayout.cs)."""
+    """Vocabulary for the C# encoder (src/s3/S3/MacroLayout.cs)."""
     import json
     json.dump({"card": vocab["card"], "ench": vocab["ench"], "relic": vocab["relic"], "potion": vocab["potion"],
                "encounter": vocab["encounter"], "special": special}, open(path, "w"))

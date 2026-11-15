@@ -1,5 +1,5 @@
 """A10 analysis, fight logs (2026-11-14): fights by ascension, act and room type from a segment's fights/*.jsonl joined to
-its runs/*.jsonl. Statistics only. Usage: python -I research/s3/a10val_fights.py <fights dir> <runs dir> [ascensions]"""
+its runs/*.jsonl. Statistics only. Usage: python -I src/s3/a10val_fights.py <fights dir> <runs dir> [ascensions]"""
 import collections, glob, json, os, sys
 
 fdir, rdir = sys.argv[1:3]

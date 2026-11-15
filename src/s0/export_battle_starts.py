@@ -1,19 +1,19 @@
 """Export fight starts ("battle starts") from Spire Codex run records as JSON lines for the C# loader
-(research/s0/S0.Sim/BattleStart.cs).
+(src/s0/S0.Sim/BattleStart.cs).
 
 The deck / relic / potion state before fight g is the state after floor g-1, rebuilt with reconstruct() from
-research/value_v1/build_floor_dataset.py (imported read-only, not modified). HP, max HP and gold come from the
+src/value_v1/build_floor_dataset.py (imported read-only, not modified). HP, max HP and gold come from the
 player_stats of floor g-1; the encounter id is rooms[0].model_id of floor g; act index is the act of floor g.
 
-Usage: ./.venv/bin/python -I research/s0/export_battle_starts.py [--runs PATH] [--out PATH]
+Usage: ./.venv/bin/python -I src/s0/export_battle_starts.py [--runs PATH] [--out PATH]
            [--build v0.111.0] [--character DEFECT] [--max 300] [--per-run 3] [--seed 0]
 """
 import argparse, gzip, json, os, random, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(os.path.dirname(HERE))
-sys.dont_write_bytecode = True  # do not write .pyc files into research/value_v1
-sys.path.insert(0, os.path.join(ROOT, "research", "value_v1"))
+sys.dont_write_bytecode = True  # do not write .pyc files into src/value_v1
+sys.path.insert(0, os.path.join(ROOT, "src", "value_v1"))
 import orjson  # noqa: E402
 from build_floor_dataset import reconstruct, insane  # noqa: E402
 
@@ -59,7 +59,7 @@ def battle_starts(r):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--runs", default=os.path.join(ROOT, "research/data/spire_codex/poc_100k/runs.jsonl.gz"))
+    ap.add_argument("--runs", default=os.path.join(ROOT, "data/spire_codex/poc_100k/runs.jsonl.gz"))
     ap.add_argument("--out", default=os.path.join(HERE, "data/battle_starts_v0.111.0_defect.jsonl"))
     ap.add_argument("--build", default="v0.111.0")
     ap.add_argument("--character", default="DEFECT")

@@ -2,13 +2,13 @@
 
 W2(h, P) = sigmoid(b0 + b_hp * h + b_pot * min(P, pot_cap) [+ b_hp2 * h^2]) with h = HP / max HP and P = potions held at
 the start of the second boss fight. The actor uses it for the first act-3 boss at A10 (option boss2_model=FILE, see
-research/s3/S3/RunAgent.cs): T_f(h, P) = d + (1 - d) W2(h, P), d = the death value of death_value=progress.
+src/s3/S3/RunAgent.cs): T_f(h, P) = d + (1 - d) W2(h, P), d = the death value of death_value=progress.
 
 Reads one or more segment log directories (each with runs/*.jsonl and fights/*.jsonl, e.g.
 the stored run metadata of segments 13-16; runs with errors or perturbed fight starts and practice fights are skipped.
 The second boss of a run is its last boss fight of act 3 when the run had two act-3 boss fights (the first one won).
 
-usage: python -I research/s3/fit_boss2.py [--out FILE.json] [--test DIR] [--hp2] DIR [DIR ...]
+usage: python -I src/s3/fit_boss2.py [--out FILE.json] [--test DIR] [--hp2] DIR [DIR ...]
   --test DIR  also report the fit's log loss on this directory (held out) against simpler models
 Prints the act-3 double-boss statistics (conversion, HP and potions at the second boss, win rate by HP band) as well.
 """

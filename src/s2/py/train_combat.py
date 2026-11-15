@@ -1,4 +1,4 @@
-"""S2 combat-network trainer: learns from the self-play chunks written by the C# actors (research/s2/S2/Fights.cs
+"""S2 combat-network trainer: learns from the self-play chunks written by the C# actors (src/s2/S2/Fights.cs
 ChunkWriter) and publishes weights for the inference server.
 
 Loop: scan --data for new *.s2d chunks into a replay window of the last --window decisions; train while
@@ -36,11 +36,11 @@ Shadow trainers and offline comparisons (2026-11-13, IMPROVEMENT_PLAN.md change 
   --tee-dir D1[,D2..] every chunk this trainer reads is hard-linked into each Di first (before it is archived or
                  deleted), so other trainers (e.g. a larger network) learn from the same self-play stream.
   --skip-every K chunks whose sequence number (<tag>_<seq>.s2d) is a multiple of K are teed but not trained on: a
-                 held-out set that is the same for every trainer of the stream (research/s2/py/combat_heldout.py).
+                 held-out set that is the same for every trainer of the stream (src/s2/py/combat_heldout.py).
 
 Network configuration overrides (2026-11-15; none by default):
   --config K=V   (repeatable) set a config key of the network, e.g. --config ext=1: the layout-v4/v5 network
-                 (combat_obs.CombatNet ext_feat; research/s2/py/model.py). With --init the checkpoint's weights are loaded
+                 (combat_obs.CombatNet ext_feat; src/s2/py/model.py). With --init the checkpoint's weights are loaded
                  into the overridden network: a v3 checkpoint + ext=1 = an ext network whose outputs equal the
                  checkpoint's at step 0 (ext_feat's last layer starts at zero). Saved checkpoints carry the config.
                  Shadow on the live stream (run_s3.sh SHADOW_ARGS="--config ext=1"): the shadow trainer starts from the
@@ -49,7 +49,7 @@ Network configuration overrides (2026-11-15; none by default):
                  then a no-op). Do not put --init into SHADOW_ARGS: it would come after run_s3.sh's own --init and
                  restart the shadow from that file in every segment.
 
-Usage: python -I research/s2/py/train_combat.py --data DIR --weights PATH [--ckpt-dir DIR] [--window 500000]
+Usage: python -I src/s2/py/train_combat.py --data DIR --weights PATH [--ckpt-dir DIR] [--window 500000]
 """
 import argparse, copy, glob, io, json, math, os, signal, sys, time
 

@@ -1,7 +1,7 @@
 """Layout-v4 / ext network check (CPU, a few seconds; no GPU, no server).
 
-Usage: python -I research/s3/py/ext_test.py WEIGHTS.pt CHUNK.s2d [--n 256] [--vocab research/s0/data/combat_vocab_v1.json]
-  WEIGHTS: a v3 combat checkpoint (e.g. research/s3/weights/s037/weights.pt); CHUNK: a training chunk written by v3 actors.
+Usage: python -I src/s3/py/ext_test.py WEIGHTS.pt CHUNK.s2d [--n 256] [--vocab src/s0/data/combat_vocab_v1.json]
+  WEIGHTS: a v3 combat checkpoint (e.g. src/s3/weights/s037/weights.pt); CHUNK: a training chunk written by v3 actors.
 
 (a) blindness and identity at init, on n real decisions of the chunk:
     a0  the chunk's layout-v4 slots (combat_obs.V4_SLOTS) are all 0 (v3 data);

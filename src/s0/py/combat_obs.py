@@ -1,4 +1,4 @@
-"""Combat observation layout v5 (v4 shape; mirror of research/s0/S0.Sim/ObsLayout.cs and CombatObservation.cs).
+"""Combat observation layout v5 (v4 shape; mirror of src/s0/S0.Sim/ObsLayout.cs and CombatObservation.cs).
 
 Observation: int32[T=128, 11]; row = [kind, id, id2, f0..f7]. Actions: int32[A=64, 8]; row = [kind+1 (0 pad,
 1 end, 2 card, 3 potion), source token, target token (-1 none, 0 = player/global), prompt code (0 none, 1 + number of
@@ -42,7 +42,7 @@ V4_SLOTS = {2: (5, 6), 3: (4, 5), 4: (3, 4), 5: (3, 4), 7: (2,), 8: (1,), 11: (0
 # 11 f0/f1 = layout-v5 relic counters (2026-11-15): they are appended to this map because ext_feat consumes every slot
 # listed here, and the live/v3 network must stay blind to them. Adding the two columns changes ext_feat's input width, so
 # an ext checkpoint written before this change cannot load into the wider network: restart the shadow from the playing
-# network (research/s3/run_s3.sh SHADOW_FROM_PLAYING=1 SHADOW_ARGS="--config ext=1", OBS=5).
+# network (src/s3/run_s3.sh SHADOW_FROM_PLAYING=1 SHADOW_ARGS="--config ext=1", OBS=5).
 V5_SLOTS = {11: (0, 1)}                                                     # kind -> feature slots introduced in v5
 EXT_SLOTS = V4_SLOTS                                                        # every slot fed to ext_feat (v4 + v5)
 V3_MASK = np.ones((len(KINDS), N_FEATURES), np.int64)                         # 1 = slot seen by every network
@@ -134,13 +134,13 @@ try:
         Token embedding = kind + id + id2 embeddings + MLP(signed log features); 2-layer transformer encoder.
         Policy: one logit per action row from [h_source, h_target (or a learned 'no target'), action-kind embedding,
         pooled state]; padded actions get -inf. Value head: n_value outputs (2 = scalar head: P(survive) logit and
-        relative T_f; 47 = outcome head: 41 end-HP bin logits + 6 potion-kept logits, research/s2/S2/Evaluator.cs Outcome).
+        relative T_f; 47 = outcome head: 41 end-HP bin logits + 6 potion-kept logits, src/s2/S2/Evaluator.cs Outcome).
         forward returns (policy logits [B, A], value outputs [B, n_value]).
         Features: the integer features are multiplied by V3_MASK[kind] before `feat` (exact: integer product, so on v3
         data, whose V4_SLOTS are 0, the input is unchanged bit for bit, and on v4 data the network sees its v3 input).
         ext=1: `ext_feat` = MLP over the V4_SLOTS values (sign-log1p, one input column per (kind, slot) of EXT_COLS) added
         to the token embedding; its last layer starts at zero, so a v3 checkpoint loaded into an ext network gives the
-        same outputs (research/s2/py/model.py load_net)."""
+        same outputs (src/s2/py/model.py load_net)."""
 
         def __init__(self, vocab, d=128, layers=2, heads=4, n_value=2, dropout=0.0, vdrop=0.0, ext=0):
             super().__init__()

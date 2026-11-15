@@ -4,7 +4,7 @@ using System.Runtime.InteropServices;
 namespace Sts2Sim.S0;
 
 /// <summary>
-/// Shared-memory client for batched network evaluation (protocol v1; server: research/s0/py/bridge_server.py).
+/// Shared-memory client for batched network evaluation (protocol v1; server: src/s0/py/bridge_server.py).
 /// <para>The server creates the file (e.g. /dev/shm/s0_bridge) and writes the header; the magic is written last.
 /// Byte layout (little endian):</para>
 /// <code>

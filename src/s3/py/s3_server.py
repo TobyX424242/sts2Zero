@@ -1,7 +1,7 @@
 """S3 inference server: the combat network and the macro ensemble for many actor processes, on one GPU.
 
-Combat half: exactly research/s2/py/infer_server.py (bridge protocol v1, files <prefix><i>). Macro half: files
-<mprefix><i> with the layout of research/s3/S3/MacroBridge.cs; rows as in macro_s3.py. One loop polls both kinds of
+Combat half: exactly src/s2/py/infer_server.py (bridge protocol v1, files <prefix><i>). Macro half: files
+<mprefix><i> with the layout of src/s3/S3/MacroBridge.cs; rows as in macro_s3.py. One loop polls both kinds of
 request; all ready combat requests go into one padded batch, all ready macro requests into another. Weights are
 re-loaded when the --weights (combat) or --macro (ensemble) file changes.
 
@@ -16,8 +16,8 @@ Weights of another structure (2026-11-15: e.g. a checkpoint with config "ext": 1
 network is rebuilt from the checkpoint (combat_pipe.CombatPipe.replace_net: captured graphs are dropped and captured
 again); same structure: loaded in place as before. A checkpoint with another output width (value head) is refused.
 
-Usage: python -I research/s3/py/s3_server.py --prefix /dev/shm/s3_c --mprefix /dev/shm/s3_m --actors 8
-           --weights research/s2/runs/X/weights.pt --macro research/s3/data/macro_s1.pt [--capacity 64] [--mcapacity 256]
+Usage: python -I src/s3/py/s3_server.py --prefix /dev/shm/s3_c --mprefix /dev/shm/s3_m --actors 8
+           --weights src/s2/runs/X/weights.pt --macro src/s3/data/macro_s1.pt [--capacity 64] [--mcapacity 256]
 """
 import argparse, mmap, os, struct, sys, time
 
@@ -78,7 +78,7 @@ def main():
     ap.add_argument("--actors", type=int, default=1)
     ap.add_argument("--capacity", type=int, default=64); ap.add_argument("--mcapacity", type=int, default=256)
     ap.add_argument("--vocab", default=os.path.join(HERE, "..", "..", "s0", "data", "combat_vocab_v1.json"))
-    ap.add_argument("--weights", required=True, help="combat network checkpoint (research/s2/py/model.py)")
+    ap.add_argument("--weights", required=True, help="combat network checkpoint (src/s2/py/model.py)")
     ap.add_argument("--macro", required=True, help="macro ensemble file (macro_s3.Ensemble)")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     ap.add_argument("--dtype", default="bf16")

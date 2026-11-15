@@ -87,13 +87,13 @@ model or vocabulary; no round-trip test.
 ```bash
 W=$(pwd)  # repository root; cd $W
 export NUGET_PACKAGES=$W/.cache/nuget DOTNET_CLI_HOME=$W/.cache/dotnet DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 TMPDIR=$W/.cache/tmp
-dotnet build research/s0/S0Tests/S0Tests.csproj -c Release -m:8
-T=research/s0/S0Tests/bin/Release/net9.0/S0Tests.dll
+dotnet build src/s0/S0Tests/S0Tests.csproj -c Release -m:8
+T=src/s0/S0Tests/bin/Release/net9.0/S0Tests.dll
 dotnet $T resample 60 10000 L 3000        # deliverable 1 (a)-(d) + encoder check, ~1 min
 dotnet $T choices 10 10 4 B 3000          # deliverable 2, ~1.5 min
-./.venv/bin/python -I research/s0/export_battle_starts.py --max 1000 --per-run 2 \
-    --out research/s0/data/battle_starts_v0.111.0_defect_1000.jsonl
-dotnet $T import research/s0/data/battle_starts_v0.111.0_defect_1000.jsonl 1000   # deliverable 3
+./.venv/bin/python -I src/s0/export_battle_starts.py --max 1000 --per-run 2 \
+    --out src/s0/data/battle_starts_v0.111.0_defect_1000.jsonl
+dotnet $T import src/s0/data/battle_starts_v0.111.0_defect_1000.jsonl 1000   # deliverable 3
 ```
 
 ## Results (laptop, 2026-11-11; full outputs in `out/`)
@@ -156,12 +156,12 @@ re-loaded between batches when the checkpoint file's mtime changes (write + rena
 
 ## Commands
 ```bash
-T=research/s0/S0Tests/bin/Release/net9.0/S0Tests.dll
+T=src/s0/S0Tests/bin/Release/net9.0/S0Tests.dll
 dotnet $T actions 6 2000 10 4 P 3000                     # action space, ~40 s
-dotnet $T encode 20 1000 research/s0/data/obs_v1_1000     # 1,000 encoded states (vocab is reused if present)
-./.venv/bin/python -I research/s0/py/test_roundtrip.py   # decode + compare + CombatNet forward (CPU)
-./.venv/bin/python -I research/s0/py/bridge_server.py --path /dev/shm/s0_bridge &   # GPU
-dotnet $T bridge /dev/shm/s0_bridge research/s0/data/obs_v1_1000 2 64 256 1024
-dotnet $T m1 research/s0/data/battle_starts_v0.111.0_defect_1000.jsonl 0 6 200 tf \
-    research/s0/data/tf_tables_v0.111.0_defect_1000.jsonl 1 research/s0/out/m1_tf200_compare_6.jsonl
+dotnet $T encode 20 1000 src/s0/data/obs_v1_1000     # 1,000 encoded states (vocab is reused if present)
+./.venv/bin/python -I src/s0/py/test_roundtrip.py   # decode + compare + CombatNet forward (CPU)
+./.venv/bin/python -I src/s0/py/bridge_server.py --path /dev/shm/s0_bridge &   # GPU
+dotnet $T bridge /dev/shm/s0_bridge src/s0/data/obs_v1_1000 2 64 256 1024
+dotnet $T m1 src/s0/data/battle_starts_v0.111.0_defect_1000.jsonl 0 6 200 tf \
+    src/s0/data/tf_tables_v0.111.0_defect_1000.jsonl 1 src/s0/out/m1_tf200_compare_6.jsonl
 ```

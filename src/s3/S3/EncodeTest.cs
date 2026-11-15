@@ -24,8 +24,8 @@ namespace Sts2Sim.S3;
 /// snapshots of the deck, relics and potions at every floor end (cards gained, removed, upgraded, enchanted; potions
 /// gained and used; final deck and relics).</item>
 /// </list>
-/// research/s3/py/roundtrip_macro.py rebuilds the per-floor examples from the run records with the S1 dataset builder
-/// (research/value_v1/build_floor_dataset.py) and compares them with the C# rows.
+/// src/s3/py/roundtrip_macro.py rebuilds the per-floor examples from the run records with the S1 dataset builder
+/// (src/value_v1/build_floor_dataset.py) and compares them with the C# rows.
 /// </summary>
 public static class EncodeTest
 {

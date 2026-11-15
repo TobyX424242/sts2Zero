@@ -1,6 +1,6 @@
 """Macro inference on CPU vs GPU (2026-11-14): time macro_s3.Ensemble.serve on real rows (a run chunk *.s3r) in batches
 like the live macro server's (~30 rows), with T CPU threads, and compare the outputs with the same batches on CUDA.
-usage: ./.venv/bin/python -I research/s3/py/macro_cpu_bench.py MACRO.pt CHUNK.s3r [--threads 1,2,4] [--batch 32] [--iters 300]
+usage: ./.venv/bin/python -I src/s3/py/macro_cpu_bench.py MACRO.pt CHUNK.s3r [--threads 1,2,4] [--batch 32] [--iters 300]
 """
 import argparse, os, sys, time
 
