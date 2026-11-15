@@ -1,7 +1,7 @@
 # Documentation
 
 This directory is the curated record of the project: the architecture, the training pipeline, the experiments and
-the numbers that mattered, without the raw per-segment logs.
+the numbers that mattered.
 
 ## Reading order
 
