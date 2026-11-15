@@ -11,7 +11,7 @@ A research codebase for a **Defect, Ascension 10, game v0.111.0** agent in the M
 Training is staged: S1 warms the macro network up on human runs, S2 warms the combat network up on human battle
 starts, and S3 trains both networks on the agent's own full runs with search in every fight.
 
-**Status at the snapshot (2026-11-15):** S1 and S2 are complete and passed their gates. S3 is training on a rented
+**Status at the snapshot (2026-11-15):** S1 and S2 are complete (G2 passed; G1 passed except the +1-potion check, accepted by the owner). S3 is training on a rented
 box. The last recorded evaluation (segment 45, 300 fixed A10 seeds) won **31.3%** of runs, against **15.5%** for the
 human Defect A10 uploader population on v0.111.0. The run had processed about 1.28M self-play runs. The project target
 is 50%; the best published end-to-end agent (AlphaDefect) claims 70.9% in its own engine.
