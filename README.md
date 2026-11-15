@@ -40,7 +40,7 @@ The code is in this repository; the weights are in the GitHub release
 
 | Asset | What it is |
 |---|---|
-| `s3_s045_weights.pt` | S3 combat network at segment 45 (layout v3, the network that scored 31.3%) |
+| `s3_s045_weights.pt` | S3 combat network at segment 45 (v3 behaviour: `obs=5`, non-`ext`, v4/v5 slots masked; the network that scored 31.3%) |
 | `s3_s045_macro.pt` | S3 macro ensemble + policy at segment 45 |
 | `s3_s045_shadow.pt` | layout-v4/v5 `ext` combat network; the one segment 46 continues from |
 | `SHA256SUMS` | checksums |
