@@ -1,0 +1,38 @@
+# Python / tooling
+.venv/
+.cache/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# .NET build outputs
+bin/
+obj/
+dotnet/
+*.dll
+*.pdb
+*.deps.json
+*.runtimeconfig.json
+
+# Runtime artifacts
+runs/
+out/
+bench/
+archive/
+/dev/shm/
+*.log
+*.s2d
+*.s3r
+*.npz
+*.npy
+*.pt
+*.pth
+*.speedscope.json
+*.jsonl
+*.jsonl.gz
+
+# User-provided data (Spire Codex dump, pools, tables)
+/data/
+
+# OS
+.DS_Store

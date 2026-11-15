@@ -1,0 +1,254 @@
+{
+ "members": [
+  "runs/macro/noattn_light",
+  "runs/macro/noattn_light_seed1",
+  "runs/macro/noattn_light_seed2",
+  "runs/macro/noattn_light_seed3",
+  "runs/macro/noattn_light_seed4"
+ ],
+ "temperatures_by_act": [
+  0.98,
+  0.96,
+  0.935
+ ],
+ "test": {
+  "members": [
+   {
+    "logloss": 0.4674,
+    "auc": 0.8349,
+    "brier": 0.1527,
+    "ece": 0.0036,
+    "auc_within_floor": 0.7982,
+    "ece_within_floor_bands": 0.0041,
+    "worst_floor_band_mean_gap_pts": 0.18
+   },
+   {
+    "logloss": 0.4673,
+    "auc": 0.8351,
+    "brier": 0.1527,
+    "ece": 0.004,
+    "auc_within_floor": 0.7984,
+    "ece_within_floor_bands": 0.0046,
+    "worst_floor_band_mean_gap_pts": 0.2
+   },
+   {
+    "logloss": 0.4672,
+    "auc": 0.8352,
+    "brier": 0.1526,
+    "ece": 0.0034,
+    "auc_within_floor": 0.7985,
+    "ece_within_floor_bands": 0.0042,
+    "worst_floor_band_mean_gap_pts": 0.34
+   },
+   {
+    "logloss": 0.4671,
+    "auc": 0.8351,
+    "brier": 0.1526,
+    "ece": 0.0026,
+    "auc_within_floor": 0.7985,
+    "ece_within_floor_bands": 0.0038,
+    "worst_floor_band_mean_gap_pts": 0.14
+   },
+   {
+    "logloss": 0.4672,
+    "auc": 0.835,
+    "brier": 0.1526,
+    "ece": 0.0033,
+    "auc_within_floor": 0.7984,
+    "ece_within_floor_bands": 0.0041,
+    "worst_floor_band_mean_gap_pts": 0.29
+   }
+  ],
+  "ensemble_raw": {
+   "logloss": 0.4655,
+   "auc": 0.8365,
+   "brier": 0.152,
+   "ece": 0.003,
+   "auc_within_floor": 0.8002,
+   "ece_within_floor_bands": 0.0038,
+   "worst_floor_band_mean_gap_pts": 0.2
+  },
+  "ensemble_calibrated": {
+   "logloss": 0.4657,
+   "auc": 0.8365,
+   "brier": 0.1521,
+   "ece": 0.0071,
+   "auc_within_floor": 0.8002,
+   "ece_within_floor_bands": 0.0074,
+   "worst_floor_band_mean_gap_pts": 0.72
+  },
+  "target_cell_calibrated": {
+   "logloss": 0.4301,
+   "auc": 0.8257,
+   "brier": 0.1381,
+   "ece": 0.0107,
+   "auc_within_floor": 0.7814,
+   "ece_within_floor_bands": 0.019,
+   "worst_floor_band_mean_gap_pts": 1.53
+  },
+  "member_spread_pts": {
+   "mean": 2.07,
+   "p90": 4.04
+  }
+ },
+ "dominance": {
+  "hp_plus10": {
+   "n": 39850,
+   "wrong_over_0.5pt": 0.0,
+   "right_sign": 1.0,
+   "mean_pts_by_act": [
+    2.21,
+    3.5,
+    4.19
+   ]
+  },
+  "maxhp_plus5_hp_plus5": {
+   "n": 50000,
+   "wrong_over_0.5pt": 0.0,
+   "right_sign": 1.0,
+   "mean_pts_by_act": [
+    3.05,
+    3.3,
+    2.57
+   ]
+  },
+  "gold_plus100": {
+   "n": 50000,
+   "wrong_over_0.5pt": 0.0002,
+   "right_sign": 0.9989,
+   "mean_pts_by_act": [
+    2.91,
+    2.71,
+    1.9
+   ]
+  },
+  "potion_plus1": {
+   "n": 38910,
+   "wrong_over_0.5pt": 0.0282,
+   "right_sign": 0.9276,
+   "mean_pts_by_act": [
+    1.35,
+    2.38,
+    2.36
+   ]
+  },
+  "potion_minus1": {
+   "n": 41808,
+   "wrong_over_0.5pt": 0.0069,
+   "right_sign": 0.9713,
+   "mean_pts_by_act": [
+    -1.73,
+    -2.46,
+    -2.26
+   ]
+  },
+  "curse_clumsy": {
+   "n": 49960,
+   "wrong_over_0.5pt": 0.0001,
+   "right_sign": 0.9998,
+   "mean_pts_by_act": [
+    -4.71,
+    -5.35,
+    -3.95
+   ]
+  },
+  "curse_injury": {
+   "n": 49960,
+   "wrong_over_0.5pt": 0.0,
+   "right_sign": 1.0,
+   "mean_pts_by_act": [
+    -5.57,
+    -5.88,
+    -4.53
+   ]
+  },
+  "curse_regret": {
+   "n": 49960,
+   "wrong_over_0.5pt": 0.0,
+   "right_sign": 1.0,
+   "mean_pts_by_act": [
+    -7.09,
+    -8.06,
+    -7.04
+   ]
+  },
+  "curse_doubt": {
+   "n": 49960,
+   "wrong_over_0.5pt": 0.0,
+   "right_sign": 1.0,
+   "mean_pts_by_act": [
+    -6.2,
+    -6.76,
+    -5.54
+   ]
+  }
+ },
+ "tf_builder": {
+  "fights": 2000,
+  "expected_gold_by_room": {
+   "monster": 12.999981880187988,
+   "elite": 31.999998092651367,
+   "boss": 75.0
+  },
+  "final_boss_fights": 14,
+  "batched_vs_direct_max_abs_pts": 0.0071,
+  "death_value": 0.0,
+  "final_boss_value_is_1": true,
+  "hp_steps_decreasing": 0,
+  "hp_steps_total": 679113,
+  "potion_subset_wrong_over_0.5pt": 0.0009,
+  "tf_minus_actual_post_state_pts": {
+   "n": 1981,
+   "mean": -3.08,
+   "median_abs": 2.16,
+   "p90_abs": 9.53
+  }
+ },
+ "policy_test_top1_mean": {
+  "CARD_REWARD": 0.5331,
+  "RELIC_PICK": 0.5491,
+  "ANCIENT": 0.8258,
+  "REST": 0.6716,
+  "SMITH_TARGET": 0.4695,
+  "REMOVE_TARGET": 0.7316,
+  "SHOP": 0.3479
+ },
+ "card_reward_pickrate_baseline": 0.4056,
+ "G1": {
+  "a_calibration": {
+   "ece_bands_all": 0.0074,
+   "ece_bands_cell": 0.019,
+   "worst_band_gap_pts_all": 0.72,
+   "worst_band_gap_pts_cell": 1.53,
+   "pass": 1.0
+  },
+  "b_dominance": {
+   "hp_wrong": 0.0,
+   "worst_other": 0.0282,
+   "pass": false
+  },
+  "c_accuracy": {
+   "test_logloss": 0.4657,
+   "auc_within_floor": 0.8002,
+   "baselines_100k": {
+    "noattn": [
+     0.48,
+     0.7864
+    ],
+    "transformer": [
+     0.4841,
+     0.783
+    ]
+   },
+   "pass": 1.0
+  },
+  "d_tf_builder": {
+   "pass": true
+  },
+  "e_policy_vs_pickrate": {
+   "card_reward_top1": 0.5331,
+   "baseline": 0.4056
+  }
+ },
+ "elapsed_s": 132
+}

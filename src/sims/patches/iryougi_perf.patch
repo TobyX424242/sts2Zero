@@ -1,0 +1,1260 @@
+diff --git a/src/Sts2Sim.Core/Combat/CombatSemanticHistory.cs b/src/Sts2Sim.Core/Combat/CombatSemanticHistory.cs
+index 4133c91..094d8ae 100644
+--- a/src/Sts2Sim.Core/Combat/CombatSemanticHistory.cs
++++ b/src/Sts2Sim.Core/Combat/CombatSemanticHistory.cs
+@@ -138,26 +138,32 @@ public sealed class CombatSemanticHistory
+     internal CombatSemanticHistory Clone()
+     {
+         var clone = new CombatSemanticHistory();
++        clone._exhausts.EnsureCapacity(_exhausts.Count); // perf: one exact allocation
+         clone._exhausts.AddRange(_exhausts.Select(entry => entry with
+         {
+             Turn = entry.Turn.Copy(),
+         }));
++        clone._cardBlockGains.EnsureCapacity(_cardBlockGains.Count); // perf: one exact allocation
+         clone._cardBlockGains.AddRange(_cardBlockGains.Select(entry => entry with
+         {
+             Turn = entry.Turn.Copy(),
+         }));
++        clone._orbChannels.EnsureCapacity(_orbChannels.Count); // perf: one exact allocation
+         clone._orbChannels.AddRange(_orbChannels.Select(entry => entry with
+         {
+             Turn = entry.Turn.Copy(),
+         }));
++        clone._energySpent.EnsureCapacity(_energySpent.Count); // perf: one exact allocation
+         clone._energySpent.AddRange(_energySpent.Select(entry => entry with
+         {
+             Turn = entry.Turn.Copy(),
+         }));
++        clone._cardDrawn.EnsureCapacity(_cardDrawn.Count); // perf: one exact allocation
+         clone._cardDrawn.AddRange(_cardDrawn.Select(entry => entry with
+         {
+             Turn = entry.Turn.Copy(),
+         }));
++        clone._actorEvents.EnsureCapacity(_actorEvents.Count); // perf: one exact allocation
+         clone._actorEvents.AddRange(_actorEvents.Select(entry => entry with
+         {
+             Turn = entry.Turn.Copy(),
+diff --git a/src/Sts2Sim.Core/Combat/CombatState.Clone.cs b/src/Sts2Sim.Core/Combat/CombatState.Clone.cs
+index 71a0386..4243bc5 100644
+--- a/src/Sts2Sim.Core/Combat/CombatState.Clone.cs
++++ b/src/Sts2Sim.Core/Combat/CombatState.Clone.cs
+@@ -313,6 +313,11 @@ public sealed partial class CombatState
+         return clone;
+     }
+ 
++    /// <summary>Perf: the player list of a combat clone's run snapshot (null for any other run state), for
++    /// Hooks.HookListenerSequence.</summary>
++    internal static List<Player>? SnapshotPlayerList(IRunState runState) =>
++        runState is CombatRunStateSnapshot snapshot ? snapshot.PlayerList : null;
++
+     /// <summary>
+     /// A combat-local run facade is sufficient for Beam Search: Task 2 never advances maps, rooms, rewards,
+     /// or event sequences. Sharing the current room is deliberate because combat code only reads its identity/type;
+@@ -345,6 +350,8 @@ public sealed partial class CombatState
+ 
+         public void AddPlayer(Player player) => _players.Add(player);
+ 
++        internal List<Player> PlayerList => _players;
++
+         public IEnumerable<AbstractModel> IterateHookListeners(ICombatState? childCombatState)
+         {
+             foreach (Player player in _players)
+@@ -355,9 +362,11 @@ public sealed partial class CombatState
+                         yield return relic;
+                 }
+ 
+-                foreach (PotionModel potion in player.PotionSlots.OfType<PotionModel>())
++                // Same live enumerator as OfType<PotionModel>() (non-null slots, List version checks).
++                foreach (PotionModel? potion in player.PotionSlots)
+                 {
+-                    yield return potion;
++                    if (potion is not null)
++                        yield return potion;
+                 }
+ 
+                 if (childCombatState is null)
+@@ -369,7 +378,22 @@ public sealed partial class CombatState
+                 }
+             }
+ 
+-            if (childCombatState is not null)
++            if (childCombatState is CombatState combat)
++            {
++                // Perf: same snapshot point as childCombatState.IterateHookListeners(), pooled buffer.
++                List<AbstractModel> listeners = Hooks.HookListenerBuffers.Rent();
++                try
++                {
++                    combat.AppendHookListeners(listeners, includePlayerInventory: false);
++                    for (int i = 0; i < listeners.Count; i++)
++                        yield return listeners[i];
++                }
++                finally
++                {
++                    Hooks.HookListenerBuffers.Return(listeners);
++                }
++            }
++            else if (childCombatState is not null)
+             {
+                 foreach (AbstractModel listener in childCombatState.IterateHookListeners())
+                 {
+diff --git a/src/Sts2Sim.Core/Combat/CombatState.cs b/src/Sts2Sim.Core/Combat/CombatState.cs
+index c699f82..8d222c7 100644
+--- a/src/Sts2Sim.Core/Combat/CombatState.cs
++++ b/src/Sts2Sim.Core/Combat/CombatState.cs
+@@ -411,59 +411,42 @@ public sealed partial class CombatState : ICombatState
+     {
+         // Build the whole dispatch snapshot before any hook runs. Intermediate copies of
+         // creature, orb, and pile collections are unnecessary during this synchronous pass.
+-        var listeners = new List<AbstractModel>(EstimateHookListenerCount());
+-        foreach (Creature creature in _allies)
++        // Perf: filled in a pooled buffer, then copied once into an exactly sized list.
++        List<AbstractModel> buffer = Hooks.HookListenerBuffers.Rent();
++        try
+         {
+-            AppendCreatureHookListeners(listeners, creature, includePlayerInventory);
++            AppendHookListeners(buffer, includePlayerInventory);
++            return new List<AbstractModel>(buffer);
+         }
+-
+-        foreach (Creature creature in _enemies)
++        finally
+         {
+-            AppendCreatureHookListeners(listeners, creature, includePlayerInventory);
++            Hooks.HookListenerBuffers.Return(buffer);
+         }
+-
+-        return listeners;
+     }
+ 
+-    // Preallocate to reduce snapshot list growth. Enchantments, afflictions and inventory
+-    // are not counted; if capacity is insufficient, the list grows normally.
+-    private int EstimateHookListenerCount()
++    /// <summary>Appends this dispatch snapshot (the order of <see cref="IterateHookListeners(bool)"/>) to
++    /// <paramref name="listeners"/>. Synchronous: no hook runs while it is filled.</summary>
++    internal void AppendHookListeners(List<AbstractModel> listeners, bool includePlayerInventory)
+     {
+-        int count = 0;
+-        foreach (Creature creature in _allies)
++        for (int i = 0; i < _allies.Count; i++)
+         {
+-            count += EstimateCreatureHookListenerCount(creature);
++            AppendCreatureHookListeners(listeners, _allies[i], includePlayerInventory);
+         }
+ 
+-        foreach (Creature creature in _enemies)
+-        {
+-            count += EstimateCreatureHookListenerCount(creature);
+-        }
+-
+-        return count;
+-    }
+-
+-    private static int EstimateCreatureHookListenerCount(Creature creature)
+-    {
+-        int count = creature.Powers.Count + 1;
+-        PlayerCombatState? playerCombatState = creature.Player?.PlayerCombatState;
+-        if (playerCombatState is not null)
++        for (int i = 0; i < _enemies.Count; i++)
+         {
+-            count += playerCombatState.OrbQueue.Orbs.Count
+-                + playerCombatState.Hand.Cards.Count
+-                + playerCombatState.DrawPile.Cards.Count
+-                + playerCombatState.DiscardPile.Cards.Count
+-                + playerCombatState.ExhaustPile.Cards.Count
+-                + playerCombatState.PlayPile.Cards.Count;
++            AppendCreatureHookListeners(listeners, _enemies[i], includePlayerInventory);
+         }
+-
+-        return count;
+     }
+ 
+     private static void AppendCreatureHookListeners(
+         List<AbstractModel> listeners, Creature creature, bool includePlayerInventory)
+     {
+-        listeners.AddRange(creature.Powers);
++        IReadOnlyList<PowerModel> powers = creature.Powers;
++        for (int i = 0; i < powers.Count; i++)
++        {
++            listeners.Add(powers[i]);
++        }
+         if (creature.IsMonster)
+         {
+             listeners.Add(creature.Monster!);
+@@ -501,7 +484,12 @@ public sealed partial class CombatState : ICombatState
+             return;
+         }
+ 
+-        listeners.AddRange(playerCombatState.OrbQueue.Orbs);
++        IReadOnlyList<OrbModel> orbs = playerCombatState.OrbQueue.Orbs;
++        for (int i = 0; i < orbs.Count; i++)
++        {
++            listeners.Add(orbs[i]);
++        }
++
+         AppendPileHookListeners(listeners, playerCombatState.Hand);
+         AppendPileHookListeners(listeners, playerCombatState.DrawPile);
+         AppendPileHookListeners(listeners, playerCombatState.DiscardPile);
+@@ -511,12 +499,15 @@ public sealed partial class CombatState : ICombatState
+ 
+     private static void AppendPileHookListeners(List<AbstractModel> listeners, CardPile pile)
+     {
+-        foreach (CardModel card in pile.Cards)
++        IReadOnlyList<CardModel> cards = pile.Cards;
++        for (int c = 0; c < cards.Count; c++)
+         {
++            CardModel card = cards[c];
+             listeners.Add(card);
+-            foreach (EnchantmentModel enchantment in card.Enchantments)
++            IReadOnlyList<EnchantmentModel> enchantments = card.Enchantments;
++            for (int e = 0; e < enchantments.Count; e++)
+             {
+-                listeners.Add(enchantment);
++                listeners.Add(enchantments[e]);
+             }
+ 
+             if (card.Affliction is not null)
+diff --git a/src/Sts2Sim.Core/Entities/Players/Player.cs b/src/Sts2Sim.Core/Entities/Players/Player.cs
+index c5399d5..95a25c8 100644
+--- a/src/Sts2Sim.Core/Entities/Players/Player.cs
++++ b/src/Sts2Sim.Core/Entities/Players/Player.cs
+@@ -57,6 +57,9 @@ public sealed class Player
+ 
+     public IReadOnlyList<RelicModel> Relics => _relics;
+ 
++    // Perf: the concrete list for Hooks.HookListenerSequence (same enumerator as Relics).
++    internal List<RelicModel> RelicList => _relics;
++
+     public bool HasEventPet() =>
+         Relics.Any(relic => relic.AddsPet) ||
+         Deck.Cards.Any(card => card is Models.Cards.ByrdonisEgg);
+@@ -65,6 +68,9 @@ public sealed class Player
+ 
+     public IReadOnlyList<PotionModel?> PotionSlots => _potionSlots;
+ 
++    // Perf: the concrete list for Hooks.HookListenerSequence (same enumerator as PotionSlots).
++    internal List<PotionModel?> PotionSlotList => _potionSlots;
++
+     public int MaxPotionCount => _potionSlots.Count;
+ 
+     public void GrowPotionSlots(int count)
+diff --git a/src/Sts2Sim.Core/Hooks/Hook.cs b/src/Sts2Sim.Core/Hooks/Hook.cs
+index 915f5c2..b55cb49 100644
+--- a/src/Sts2Sim.Core/Hooks/Hook.cs
++++ b/src/Sts2Sim.Core/Hooks/Hook.cs
+@@ -33,7 +33,7 @@ public static class Hook
+ 
+     public static bool ShouldProcurePotion(IRunState runState, ICombatState? combatState, PotionModel potion, Player player)
+     {
+-        foreach (AbstractModel model in runState.IterateHookListeners(combatState))
++        foreach (AbstractModel model in IterateRunHookListeners(runState, combatState))
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             if (!model.ShouldProcurePotion(potion, player)) return false;
+@@ -239,7 +239,7 @@ public static class Hook
+ 
+     public static void ModifyRewards(IRunState runState, Player player, List<Reward> rewards, RoomType roomType)
+     {
+-        foreach (AbstractModel model in runState.IterateHookListeners(player.Creature.CombatState))
++        foreach (AbstractModel model in IterateRunHookListeners(runState, player.Creature.CombatState))
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             model.ModifyRewards(player, rewards, roomType);
+@@ -341,7 +341,7 @@ public static class Hook
+         PotionModel potion,
+         Creature? target)
+     {
+-        foreach (AbstractModel model in runState.IterateHookListeners(combatState).ToArray())
++        foreach (AbstractModel model in IterateRunHookListeners(runState, combatState).ToArray())
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             await model.BeforePotionUsed(potion, target);
+@@ -351,7 +351,7 @@ public static class Hook
+ 
+     public static async Task AfterPotionProcured(IRunState runState, ICombatState? combatState, PotionModel potion)
+     {
+-        foreach (AbstractModel model in runState.IterateHookListeners(combatState).ToArray())
++        foreach (AbstractModel model in IterateRunHookListeners(runState, combatState).ToArray())
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             await model.AfterPotionProcured(potion);
+@@ -361,7 +361,7 @@ public static class Hook
+ 
+     public static async Task AfterPotionDiscarded(IRunState runState, ICombatState? combatState, PotionModel potion)
+     {
+-        foreach (AbstractModel model in runState.IterateHookListeners(combatState).ToArray())
++        foreach (AbstractModel model in IterateRunHookListeners(runState, combatState).ToArray())
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             await model.AfterPotionDiscarded(potion);
+@@ -526,16 +526,23 @@ public static class Hook
+     /// <summary>
+     /// 偏离 #28: 游戏原版签名为 (IRunState, ICombatState?),本计划战斗期 hook 只从 ICombatState 派生 IRunState。
+     /// </summary>
+-    private static IEnumerable<AbstractModel> IterateCombatHookListeners(ICombatState combatState)
++    // Perf: HookListenerSequence runs this exact gate and composition inside MoveNext, without iterator objects:
++    //     if (combatState.IsOverOrEnding() && !combatState.IsStarting()) yield break;
++    //     foreach (AbstractModel model in combatState.RunState.IterateHookListeners(combatState)) yield return model;
++    // A slot lets the loop pass over listeners whose call would be an exact no-op (HookSkipIndex); only loops whose
++    // body is "eligibility guard, call the slot's method, fold its neutral result / InvokeExecutionFinished" pass one.
++    private static HookListenerSequence IterateCombatHookListeners(ICombatState combatState, HookSlot slot = HookSlot.None)
+     {
+-        if (combatState.IsOverOrEnding() && !combatState.IsStarting())
+-            yield break;
+         // Keep the simulator's existing run/combat composition here (deviation #31).
+         // Actual dispatch loops apply lifecycle eligibility; this helper preserves raw capture.
+-        foreach (AbstractModel model in combatState.RunState.IterateHookListeners(combatState))
+-            yield return model;
++        return new HookListenerSequence(combatState.RunState, combatState, gate: true, slot);
+     }
+ 
++    // Perf: same sequence as runState.IterateHookListeners(combatState) (no gate), see HookListenerSequence.
++    private static HookListenerSequence IterateRunHookListeners(IRunState runState, ICombatState? combatState,
++        HookSlot slot = HookSlot.None) =>
++        new(runState, combatState, gate: false, slot);
++
+     // Source iterators and materialized arrays remain RAW candidates. Qualification is fresh
+     // at each actual dispatch, matching native yield-time Contains without changing capture.
+     // Scope B deliberately retains legacy passthrough for five known kinds (see deviations).
+@@ -570,7 +577,7 @@ public static class Hook
+             };
+             if (concrete.GetHookListenerSnapshot(combatState.RunState, phase) is { } snapshot)
+                 return snapshot.CostListeners(slot);
+-            return combatState.RunState.IterateHookListeners(combatState)
++            return IterateRunHookListeners(combatState.RunState, combatState)
+                 .Where(model => (slot != HookOverrideIndex.CostSlot.Star && !IsKnownHookModelType(model))
+                     || HookOverrideIndex.MayOverride(model, slot)).ToArray();
+         }
+@@ -645,7 +652,7 @@ public static class Hook
+     public static decimal ModifyOrbValue(ICombatState combatState, OrbModel orb, decimal amount)
+     {
+         decimal result = amount;
+-        foreach (AbstractModel model in IterateCombatHookListeners(combatState))
++        foreach (AbstractModel model in IterateCombatHookListeners(combatState, HookSlot.ModifyOrbValue))
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             result = model.ModifyOrbValue(orb, result);
+@@ -655,13 +662,13 @@ public static class Hook
+ 
+     public static async Task BeforeCombatStart(ICombatState combatState)
+     {
+-        foreach (AbstractModel model in combatState.RunState.IterateHookListeners(combatState))
++        foreach (AbstractModel model in IterateRunHookListeners(combatState.RunState, combatState))
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             await model.BeforeCombatStart();
+             model.InvokeExecutionFinished();
+         }
+-        foreach (AbstractModel model in combatState.RunState.IterateHookListeners(combatState))
++        foreach (AbstractModel model in IterateRunHookListeners(combatState.RunState, combatState))
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             await model.BeforeCombatStartLate();
+@@ -691,13 +698,13 @@ public static class Hook
+ 
+     public static async Task AfterCombatVictory(ICombatState combatState)
+     {
+-        foreach (AbstractModel model in combatState.RunState.IterateHookListeners(combatState).ToArray())
++        foreach (AbstractModel model in IterateRunHookListeners(combatState.RunState, combatState).ToArray())
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             await model.AfterCombatVictoryEarly();
+             model.InvokeExecutionFinished();
+         }
+-        foreach (AbstractModel model in combatState.RunState.IterateHookListeners(combatState).ToArray())
++        foreach (AbstractModel model in IterateRunHookListeners(combatState.RunState, combatState).ToArray())
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             await model.AfterCombatVictory();
+@@ -707,7 +714,7 @@ public static class Hook
+ 
+     public static async Task AfterCombatEnd(ICombatState combatState)
+     {
+-        foreach (AbstractModel model in combatState.RunState.IterateHookListeners(combatState).ToArray())
++        foreach (AbstractModel model in IterateRunHookListeners(combatState.RunState, combatState).ToArray())
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             await model.AfterCombatEnd();
+@@ -785,14 +792,14 @@ public static class Hook
+         CombatSide side,
+         IReadOnlyList<Creature> participants)
+     {
+-        foreach (AbstractModel model in IterateCombatHookListeners(combatState))
++        foreach (AbstractModel model in IterateCombatHookListeners(combatState, HookSlot.AfterSideTurnStart))
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             await model.AfterSideTurnStart(side, participants);
+             model.InvokeExecutionFinished();
+         }
+ 
+-        foreach (AbstractModel model in IterateCombatHookListeners(combatState))
++        foreach (AbstractModel model in IterateCombatHookListeners(combatState, HookSlot.AfterSideTurnStartLate))
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             await model.AfterSideTurnStartLate(side, participants);
+@@ -1024,14 +1031,14 @@ public static class Hook
+ 
+     public static async Task AfterCardDrawn(ICombatState combatState, CardModel card, bool fromHandDraw)
+     {
+-        foreach (AbstractModel model in IterateCombatHookListeners(combatState))
++        foreach (AbstractModel model in IterateCombatHookListeners(combatState, HookSlot.AfterCardDrawnEarly))
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             await model.AfterCardDrawnEarly(card, fromHandDraw);
+             model.InvokeExecutionFinished();
+         }
+ 
+-        foreach (AbstractModel model in IterateCombatHookListeners(combatState))
++        foreach (AbstractModel model in IterateCombatHookListeners(combatState, HookSlot.AfterCardDrawn))
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             await model.AfterCardDrawn(card, fromHandDraw);
+@@ -1220,7 +1227,7 @@ public static class Hook
+         // including listeners with neutral base bodies, at its original ordered position.
+         CombatState.HookListenerSnapshot? normal = (combatState as CombatState)?
+             .GetHookListenerSnapshot(runState, CombatState.HookListenerPhase.AfterPiles);
+-        AbstractModel[] listeners = normal?.Full ?? runState.IterateHookListeners(combatState).ToArray();
++        AbstractModel[] listeners = normal?.Full ?? IterateRunHookListeners(runState, combatState).ToArray();
+         for (int i = 0; i < listeners.Length; i++)
+         {
+             AbstractModel model = listeners[i];
+@@ -1232,7 +1239,7 @@ public static class Hook
+         // Normal Hook/await/finished can change any source, so late always obtains a fresh phase.
+         CombatState.HookListenerSnapshot? late = (combatState as CombatState)?
+             .GetHookListenerSnapshot(runState, CombatState.HookListenerPhase.AfterPilesLate);
+-        listeners = late?.Full ?? runState.IterateHookListeners(combatState).ToArray();
++        listeners = late?.Full ?? IterateRunHookListeners(runState, combatState).ToArray();
+         for (int i = 0; i < listeners.Length; i++)
+         {
+             AbstractModel model = listeners[i];
+@@ -1255,7 +1262,7 @@ public static class Hook
+ 
+     public static async Task BeforeCardPlayed(ICombatState combatState, CardPlay cardPlay)
+     {
+-        foreach (AbstractModel model in IterateCombatHookListeners(combatState))
++        foreach (AbstractModel model in IterateCombatHookListeners(combatState, HookSlot.BeforeCardPlayed))
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             await model.BeforeCardPlayed(cardPlay);
+@@ -1265,7 +1272,7 @@ public static class Hook
+ 
+     public static bool ShouldPlay(ICombatState combatState, CardModel card, bool isAutoPlay)
+     {
+-        foreach (AbstractModel model in IterateCombatHookListeners(combatState))
++        foreach (AbstractModel model in IterateCombatHookListeners(combatState, HookSlot.ShouldPlay))
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             if (!model.ShouldPlay(card, isAutoPlay))
+@@ -1286,7 +1293,7 @@ public static class Hook
+     {
+         int result = playCount;
+         modifyingModels = new List<AbstractModel>();
+-        foreach (AbstractModel model in IterateCombatHookListeners(combatState))
++        foreach (AbstractModel model in IterateCombatHookListeners(combatState, HookSlot.ModifyCardPlayCount))
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             int before = result;
+@@ -1306,7 +1313,7 @@ public static class Hook
+         IEnumerable<AbstractModel> modifiers)
+     {
+         AbstractModel[] recordedModifiers = modifiers.ToArray();
+-        foreach (AbstractModel model in IterateCombatHookListeners(combatState))
++        foreach (AbstractModel model in IterateCombatHookListeners(combatState, HookSlot.AfterModifyingCardPlayCount))
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             if (!recordedModifiers.Contains(model)) continue;
+@@ -1325,7 +1332,7 @@ public static class Hook
+     {
+         var changed = new List<AbstractModel>();
+         CardLocation result = location;
+-        foreach (AbstractModel model in IterateCombatHookListeners(combatState))
++        foreach (AbstractModel model in IterateCombatHookListeners(combatState, HookSlot.ModifyCardPlayResultLocation))
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             CardLocation before = result;
+@@ -1461,7 +1468,7 @@ public static class Hook
+ 
+     public static async Task BeforeAttack(ICombatState combatState, AttackCommand command)
+     {
+-        foreach (AbstractModel model in IterateCombatHookListeners(combatState))
++        foreach (AbstractModel model in IterateCombatHookListeners(combatState, HookSlot.BeforeAttack))
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             await model.BeforeAttack(command);
+@@ -1509,7 +1516,7 @@ public static class Hook
+         Creature? dealer,
+         CardModel? cardSource)
+     {
+-        foreach (AbstractModel model in runState.IterateHookListeners(combatState))
++        foreach (AbstractModel model in IterateRunHookListeners(runState, combatState, HookSlot.BeforeDamageReceived))
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             await model.BeforeDamageReceived(target, amount, props, dealer, cardSource);
+@@ -1535,7 +1542,7 @@ public static class Hook
+         Creature? dealer,
+         CardModel? cardSource)
+     {
+-        foreach (AbstractModel model in runState.IterateHookListeners(combatState))
++        foreach (AbstractModel model in IterateRunHookListeners(runState, combatState, HookSlot.AfterDamageReceived))
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             await model.AfterDamageReceived(target, result, props, dealer, cardSource);
+@@ -1547,7 +1554,7 @@ public static class Hook
+     public static async Task AfterCurrentHpChanged(
+         IRunState runState, ICombatState? combatState, Creature creature, decimal delta)
+     {
+-        foreach (AbstractModel model in runState.IterateHookListeners(combatState))
++        foreach (AbstractModel model in IterateRunHookListeners(runState, combatState, HookSlot.AfterCurrentHpChanged))
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             await model.AfterCurrentHpChanged(creature, delta);
+@@ -1577,7 +1584,7 @@ public static class Hook
+         Creature target,
+         out AbstractModel? preventer)
+     {
+-        foreach (AbstractModel model in runState.IterateHookListeners(combatState).ToArray())
++        foreach (AbstractModel model in IterateRunHookListeners(runState, combatState).ToArray())
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             if (!model.ShouldDie(target))
+@@ -1595,7 +1602,7 @@ public static class Hook
+         Creature target,
+         out AbstractModel? preventer)
+     {
+-        foreach (AbstractModel model in runState.IterateHookListeners(combatState).ToArray())
++        foreach (AbstractModel model in IterateRunHookListeners(runState, combatState).ToArray())
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             if (!model.ShouldDieLate(target))
+@@ -1619,7 +1626,7 @@ public static class Hook
+ 
+     public static async Task BeforeDeath(IRunState runState, ICombatState? combatState, Creature target)
+     {
+-        foreach (AbstractModel model in runState.IterateHookListeners(combatState).ToArray())
++        foreach (AbstractModel model in IterateRunHookListeners(runState, combatState).ToArray())
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             await model.BeforeDeath(target);
+@@ -1636,7 +1643,7 @@ public static class Hook
+         Creature target,
+         bool wasRemovalPrevented = false)
+     {
+-        foreach (AbstractModel model in runState.IterateHookListeners(combatState).ToArray())
++        foreach (AbstractModel model in IterateRunHookListeners(runState, combatState).ToArray())
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             await model.AfterDeath(target, wasRemovalPrevented);
+@@ -1648,7 +1655,7 @@ public static class Hook
+         ICombatState? combatState,
+         Creature owner)
+     {
+-        foreach (AbstractModel model in runState.IterateHookListeners(combatState).ToArray())
++        foreach (AbstractModel model in IterateRunHookListeners(runState, combatState).ToArray())
+         {
+             if (model is PowerModel power && ReferenceEquals(power.Owner, owner) &&
+                 !model.ShouldOwnerDeathTriggerFatal())
+@@ -1715,7 +1722,7 @@ public static class Hook
+         decimal result = damage;
+         List<AbstractModel> changed = new();
+ 
+-        foreach (AbstractModel item in runState.IterateHookListeners(combatState))
++        foreach (AbstractModel item in IterateRunHookListeners(runState, combatState, HookSlot.ModifyDamageAdditive))
+         {
+             if (!IsEligibleHookListener(item)) continue;
+             decimal delta = item.ModifyDamageAdditive(target, result, props, dealer, cardSource, cardPlay);
+@@ -1726,7 +1733,7 @@ public static class Hook
+             }
+         }
+ 
+-        foreach (AbstractModel item in runState.IterateHookListeners(combatState))
++        foreach (AbstractModel item in IterateRunHookListeners(runState, combatState, HookSlot.ModifyDamageMultiplicative))
+         {
+             if (!IsEligibleHookListener(item)) continue;
+             decimal factor = item.ModifyDamageMultiplicative(target, result, props, dealer, cardSource, cardPlay);
+@@ -1738,7 +1745,7 @@ public static class Hook
+         }
+ 
+         decimal cap = decimal.MaxValue;
+-        foreach (AbstractModel item in runState.IterateHookListeners(combatState))
++        foreach (AbstractModel item in IterateRunHookListeners(runState, combatState, HookSlot.ModifyDamageCap))
+         {
+             if (!IsEligibleHookListener(item)) continue;
+             decimal itemCap = item.ModifyDamageCap(target, props, dealer, cardSource, cardPlay);
+@@ -1773,9 +1780,9 @@ public static class Hook
+         decimal result = amount;
+         List<AbstractModel> changed = new();
+ 
+-        void Round(Func<AbstractModel, decimal, decimal> modify)
++        void Round(HookSlot slot, Func<AbstractModel, decimal, decimal> modify)
+         {
+-            foreach (AbstractModel item in runState.IterateHookListeners(combatState))
++            foreach (AbstractModel item in IterateRunHookListeners(runState, combatState, slot))
+             {
+                 if (!IsEligibleHookListener(item)) continue;
+                 decimal before = result;
+@@ -1789,14 +1796,14 @@ public static class Hook
+ 
+         if (phases.HasFlag(HpLossHookPhase.BeforeOsty))
+         {
+-            Round((item, value) => item.ModifyHpLostBeforeOsty(target, value, props, dealer, cardSource));
+-            Round((item, value) => item.ModifyHpLostBeforeOstyLate(target, value, props, dealer, cardSource));
++            Round(HookSlot.ModifyHpLostBeforeOsty, (item, value) => item.ModifyHpLostBeforeOsty(target, value, props, dealer, cardSource));
++            Round(HookSlot.ModifyHpLostBeforeOstyLate, (item, value) => item.ModifyHpLostBeforeOstyLate(target, value, props, dealer, cardSource));
+         }
+ 
+         if (phases.HasFlag(HpLossHookPhase.AfterOsty))
+         {
+-            Round((item, value) => item.ModifyHpLostAfterOsty(target, value, props, dealer, cardSource));
+-            Round((item, value) => item.ModifyHpLostAfterOstyLate(target, value, props, dealer, cardSource));
++            Round(HookSlot.ModifyHpLostAfterOsty, (item, value) => item.ModifyHpLostAfterOsty(target, value, props, dealer, cardSource));
++            Round(HookSlot.ModifyHpLostAfterOstyLate, (item, value) => item.ModifyHpLostAfterOstyLate(target, value, props, dealer, cardSource));
+         }
+ 
+         modifiers = changed;
+@@ -1806,7 +1813,7 @@ public static class Hook
+     public static async Task AfterModifyingHpLostBeforeOsty(IRunState runState,
+         ICombatState? combatState, IEnumerable<AbstractModel> modifiers)
+     {
+-        foreach (AbstractModel model in runState.IterateHookListeners(combatState))
++        foreach (AbstractModel model in IterateRunHookListeners(runState, combatState, HookSlot.AfterModifyingHpLostBeforeOsty))
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             if (!modifiers.Contains(model)) continue;
+@@ -1818,7 +1825,7 @@ public static class Hook
+     public static async Task AfterModifyingHpLostAfterOsty(IRunState runState,
+         ICombatState? combatState, IEnumerable<AbstractModel> modifiers)
+     {
+-        foreach (AbstractModel model in runState.IterateHookListeners(combatState))
++        foreach (AbstractModel model in IterateRunHookListeners(runState, combatState, HookSlot.AfterModifyingHpLostAfterOsty))
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             if (!modifiers.Contains(model)) continue;
+@@ -1916,7 +1923,7 @@ public static class Hook
+         decimal result = block;
+         List<AbstractModel> changed = new();
+ 
+-        foreach (AbstractModel item in IterateCombatHookListeners(combatState))
++        foreach (AbstractModel item in IterateCombatHookListeners(combatState, HookSlot.ModifyBlockAdditive))
+         {
+             if (!IsEligibleHookListener(item)) continue;
+             decimal delta = item.ModifyBlockAdditive(target, result, props, cardSource, cardPlay);
+@@ -1927,7 +1934,7 @@ public static class Hook
+             }
+         }
+ 
+-        foreach (AbstractModel item in IterateCombatHookListeners(combatState))
++        foreach (AbstractModel item in IterateCombatHookListeners(combatState, HookSlot.ModifyBlockMultiplicative))
+         {
+             if (!IsEligibleHookListener(item)) continue;
+             decimal factor = item.ModifyBlockMultiplicative(target, result, props, cardSource, cardPlay);
+@@ -1952,7 +1959,7 @@ public static class Hook
+         ArgumentNullException.ThrowIfNull(combatState);
+         ArgumentNullException.ThrowIfNull(modifiers);
+         AbstractModel[] recordedModifiers = modifiers.ToArray();
+-        foreach (AbstractModel modifier in IterateCombatHookListeners(combatState))
++        foreach (AbstractModel modifier in IterateCombatHookListeners(combatState, HookSlot.AfterModifyingBlockAmount))
+         {
+             if (!IsEligibleHookListener(modifier)) continue;
+             if (!recordedModifiers.Contains(modifier)) continue;
+@@ -1966,7 +1973,7 @@ public static class Hook
+     {
+         decimal num = amount;
+         List<AbstractModel> list = new();
+-        foreach (AbstractModel item in IterateCombatHookListeners(combatState))
++        foreach (AbstractModel item in IterateCombatHookListeners(combatState, HookSlot.ModifyPowerAmountGivenAdditive))
+         {
+             if (!IsEligibleHookListener(item)) continue;
+             decimal delta = item.ModifyPowerAmountGivenAdditive(power, giver, num, target, cardSource);
+@@ -1976,7 +1983,7 @@ public static class Hook
+                 list.Add(item);
+             }
+         }
+-        foreach (AbstractModel item in IterateCombatHookListeners(combatState))
++        foreach (AbstractModel item in IterateCombatHookListeners(combatState, HookSlot.ModifyPowerAmountGivenMultiplicative))
+         {
+             if (!IsEligibleHookListener(item)) continue;
+             decimal factor = item.ModifyPowerAmountGivenMultiplicative(power, giver, num, target, cardSource);
+@@ -1994,7 +2001,7 @@ public static class Hook
+     {
+         decimal num = amount;
+         List<AbstractModel> list = new();
+-        foreach (AbstractModel item in IterateCombatHookListeners(combatState))
++        foreach (AbstractModel item in IterateCombatHookListeners(combatState, HookSlot.TryModifyPowerAmountReceived))
+         {
+             if (!IsEligibleHookListener(item)) continue;
+             if (item.TryModifyPowerAmountReceived(canonicalPower, target, num, giver, out decimal modifiedAmount))
+@@ -2013,7 +2020,7 @@ public static class Hook
+         PowerModel modifiedPower)
+     {
+         AbstractModel[] recordedModifiers = modifiers.ToArray();
+-        foreach (AbstractModel modifier in IterateCombatHookListeners(combatState))
++        foreach (AbstractModel modifier in IterateCombatHookListeners(combatState, HookSlot.AfterModifyingPowerAmountReceived))
+         {
+             if (!IsEligibleHookListener(modifier)) continue;
+             if (!recordedModifiers.Contains(modifier)) continue;
+@@ -2024,7 +2031,7 @@ public static class Hook
+ 
+     public static async Task BeforePowerAmountChanged(ICombatState combatState, PowerModel power, decimal amount, Creature target, Creature? applier, CardModel? cardSource)
+     {
+-        foreach (AbstractModel model in IterateCombatHookListeners(combatState))
++        foreach (AbstractModel model in IterateCombatHookListeners(combatState, HookSlot.BeforePowerAmountChanged))
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             await model.BeforePowerAmountChanged(power, amount, target, applier, cardSource);
+@@ -2035,7 +2042,7 @@ public static class Hook
+     public static async Task AfterPowerAmountChanged(ICombatState combatState, PowerModel power, decimal amount, Creature? applier, CardModel? cardSource)
+     {
+         (combatState as CombatState)?.Observer?.PowerAmountChanged(power, amount, applier, cardSource);
+-        foreach (AbstractModel model in IterateCombatHookListeners(combatState))
++        foreach (AbstractModel model in IterateCombatHookListeners(combatState, HookSlot.AfterPowerAmountChanged))
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             await model.AfterPowerAmountChanged(power, amount, applier, cardSource);
+@@ -2086,7 +2093,7 @@ public static class Hook
+ 
+     public static async Task AfterBlockCleared(ICombatState combatState, Creature creature)
+     {
+-        foreach (AbstractModel model in IterateCombatHookListeners(combatState))
++        foreach (AbstractModel model in IterateCombatHookListeners(combatState, HookSlot.AfterBlockCleared))
+         {
+             if (!IsEligibleHookListener(model)) continue;
+             await model.AfterBlockCleared(creature);
+@@ -2109,7 +2116,7 @@ public static class Hook
+ 
+     public static bool ShouldAllowHitting(ICombatState combatState, Creature creature)
+     {
+-        foreach (AbstractModel item in IterateCombatHookListeners(combatState))
++        foreach (AbstractModel item in IterateCombatHookListeners(combatState, HookSlot.ShouldAllowHitting))
+         {
+             if (!IsEligibleHookListener(item)) continue;
+             if (!item.ShouldAllowHitting(creature))
+diff --git a/src/Sts2Sim.Core/Hooks/HookListenerBuffers.cs b/src/Sts2Sim.Core/Hooks/HookListenerBuffers.cs
+new file mode 100644
+index 0000000..b121e0e
+--- /dev/null
++++ b/src/Sts2Sim.Core/Hooks/HookListenerBuffers.cs
+@@ -0,0 +1,33 @@
++using Sts2Sim.Core.Models;
++
++namespace Sts2Sim.Core.Hooks;
++
++/// <summary>
++/// Per-thread free list of the snapshot buffers that hook dispatch fills before any listener runs
++/// (perf only: dispatch order, snapshot timing and contents are unchanged).
++/// A buffer belongs to exactly one live enumerator from <see cref="Rent"/> until that enumerator is
++/// finished or disposed (iterator <c>finally</c>); <see cref="Return"/> clears it, so a pooled buffer
++/// holds no model references and nothing is shared between combat states, clones or runs.
++/// An enumerator that is abandoned without Dispose just leaves its buffer to the GC.
++/// </summary>
++internal static class HookListenerBuffers
++{
++    private const int MaxPooled = 64;
++    private const int MaxCapacity = 4096;
++
++    [ThreadStatic] private static Stack<List<AbstractModel>>? t_free;
++
++    internal static List<AbstractModel> Rent()
++    {
++        Stack<List<AbstractModel>>? free = t_free;
++        return free is not null && free.TryPop(out List<AbstractModel>? list) ? list : new List<AbstractModel>(64);
++    }
++
++    internal static void Return(List<AbstractModel> list)
++    {
++        list.Clear();
++        if (list.Capacity > MaxCapacity) return;
++        Stack<List<AbstractModel>> free = t_free ??= new Stack<List<AbstractModel>>();
++        if (free.Count < MaxPooled) free.Push(list);
++    }
++}
+diff --git a/src/Sts2Sim.Core/Hooks/HookListenerSequence.cs b/src/Sts2Sim.Core/Hooks/HookListenerSequence.cs
+new file mode 100644
+index 0000000..6f07493
+--- /dev/null
++++ b/src/Sts2Sim.Core/Hooks/HookListenerSequence.cs
+@@ -0,0 +1,226 @@
++using System.Collections;
++using Sts2Sim.Core.Combat;
++using Sts2Sim.Core.Entities.Players;
++using Sts2Sim.Core.Models;
++using Sts2Sim.Core.Runs;
++
++namespace Sts2Sim.Core.Hooks;
++
++/// <summary>
++/// Perf only: allocation-free, pattern-based enumeration of <c>runState.IterateHookListeners(combatState)</c>
++/// (optionally behind the <c>IterateCombatHookListeners</c> end-of-combat gate) with the same listeners, order and
++/// snapshot timing as the iterators it replaces. Every step happens inside <see cref="Enumerator.MoveNext"/>,
++/// exactly where the iterator body would run it:
++/// <list type="bullet">
++/// <item>gate (when requested): <c>IsOverOrEnding() &amp;&amp; !IsStarting()</c> at the first MoveNext;</item>
++/// <item>players: the run's own <c>List&lt;Player&gt;</c> enumerator (same version checks);</item>
++/// <item>relics: <see cref="RunState"/> snapshots them when the player is reached (as <c>Relics.ToArray()</c>);
++/// the combat clone's run snapshot enumerates them live (same <c>List</c> enumerator); <c>IsMelted</c> is read
++/// when each relic is reached;</item>
++/// <item>potions: the live <c>List</c> enumerator, non-null slots (as <c>OfType&lt;PotionModel&gt;()</c>);</item>
++/// <item>combat listeners: <see cref="CombatState.AppendHookListeners"/> when enumeration reaches them, after all
++/// players' relics and potions have been yielded.</item>
++/// </list>
++/// Any other run/combat implementation, and a null combat state, use the original iterator unchanged.
++/// With a <see cref="HookSlot"/>, listeners that <see cref="HookSkipIndex.CanSkip"/> are passed over (decided when
++/// each one is reached); the snapshots themselves are unchanged.
++/// Pooled buffers go back to <see cref="HookListenerBuffers"/> when a segment ends or on Dispose (foreach).
++/// </summary>
++internal readonly struct HookListenerSequence(IRunState runState, ICombatState? combatState, bool gate,
++    HookSlot slot = HookSlot.None) : IEnumerable<AbstractModel>
++{
++    public Enumerator GetEnumerator() => new(runState, combatState, gate, slot);
++
++    IEnumerator<AbstractModel> IEnumerable<AbstractModel>.GetEnumerator() => GetEnumerator();
++
++    IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
++
++    internal struct Enumerator : IEnumerator<AbstractModel>
++    {
++        private enum Phase : byte { Start, Players, Relics, Potions, Combat, Fallback, Done }
++
++        private readonly IRunState _run;
++        private readonly ICombatState? _combatState;
++        private readonly bool _gate;
++        private readonly HookSlot _slot;
++        private Phase _phase;
++        private CombatState? _combat;
++        private bool _snapshotRelics;
++        private List<Player>.Enumerator _players;
++        private List<AbstractModel>? _relicBuffer;
++        private int _index;
++        private List<RelicModel>.Enumerator _liveRelics;
++        private List<PotionModel?>.Enumerator _potions;
++        private List<AbstractModel>? _combatBuffer;
++        private IEnumerator<AbstractModel>? _fallback;
++        private AbstractModel? _current;
++
++        internal Enumerator(IRunState runState, ICombatState? combatState, bool gate, HookSlot slot)
++        {
++            _run = runState;
++            _combatState = combatState;
++            _gate = gate;
++            _slot = slot;
++        }
++
++        private readonly bool Skip(AbstractModel? model) =>
++            _slot != HookSlot.None && model is not null && HookSkipIndex.CanSkip(model, _slot);
++
++        public readonly AbstractModel Current => _current!;
++
++        readonly object IEnumerator.Current => _current!;
++
++        public bool MoveNext()
++        {
++            while (true)
++            {
++                switch (_phase)
++                {
++                    case Phase.Start:
++                        if (_gate && _combatState!.IsOverOrEnding() && !_combatState.IsStarting())
++                        {
++                            _phase = Phase.Done;
++                            return false;
++                        }
++                        List<Player>? players = null;
++                        if (_combatState is CombatState combat)
++                        {
++                            if (_run is RunState run)
++                            {
++                                players = run.PlayerList;
++                                _snapshotRelics = true;
++                            }
++                            else
++                            {
++                                players = CombatState.SnapshotPlayerList(_run);
++                            }
++                            _combat = combat;
++                        }
++                        if (players is null)
++                        {
++                            _fallback = _run.IterateHookListeners(_combatState).GetEnumerator();
++                            _phase = Phase.Fallback;
++                            continue;
++                        }
++                        _players = players.GetEnumerator();
++                        _phase = Phase.Players;
++                        continue;
++
++                    case Phase.Players:
++                        if (!_players.MoveNext())
++                        {
++                            _combatBuffer = HookListenerBuffers.Rent();
++                            _combat!.AppendHookListeners(_combatBuffer, includePlayerInventory: false);
++                            _index = 0;
++                            _phase = Phase.Combat;
++                            continue;
++                        }
++                        Player player = _players.Current;
++                        if (_snapshotRelics)
++                        {
++                            _relicBuffer = HookListenerBuffers.Rent();
++                            IReadOnlyList<RelicModel> relics = player.Relics;
++                            for (int i = 0; i < relics.Count; i++)
++                                _relicBuffer.Add(relics[i]);
++                            _index = 0;
++                        }
++                        else
++                        {
++                            _liveRelics = player.RelicList.GetEnumerator();
++                        }
++                        _phase = Phase.Relics;
++                        continue;
++
++                    case Phase.Relics:
++                        if (_snapshotRelics)
++                        {
++                            while (_index < _relicBuffer!.Count)
++                            {
++                                var relic = (RelicModel)_relicBuffer[_index++];
++                                if (!relic.IsMelted && !Skip(relic))
++                                {
++                                    _current = relic;
++                                    return true;
++                                }
++                            }
++                            HookListenerBuffers.Return(_relicBuffer);
++                            _relicBuffer = null;
++                        }
++                        else
++                        {
++                            while (_liveRelics.MoveNext())
++                            {
++                                RelicModel relic = _liveRelics.Current;
++                                if (!relic.IsMelted && !Skip(relic))
++                                {
++                                    _current = relic;
++                                    return true;
++                                }
++                            }
++                        }
++                        _potions = _players.Current.PotionSlotList.GetEnumerator();
++                        _phase = Phase.Potions;
++                        continue;
++
++                    case Phase.Potions:
++                        while (_potions.MoveNext())
++                        {
++                            if (_potions.Current is { } potion && !Skip(potion))
++                            {
++                                _current = potion;
++                                return true;
++                            }
++                        }
++                        _phase = Phase.Players;
++                        continue;
++
++                    case Phase.Combat:
++                        while (_index < _combatBuffer!.Count)
++                        {
++                            AbstractModel listener = _combatBuffer[_index++];
++                            if (Skip(listener)) continue;
++                            _current = listener;
++                            return true;
++                        }
++                        HookListenerBuffers.Return(_combatBuffer);
++                        _combatBuffer = null;
++                        _phase = Phase.Done;
++                        return false;
++
++                    case Phase.Fallback:
++                        while (_fallback!.MoveNext())
++                        {
++                            AbstractModel listener = _fallback.Current;
++                            if (Skip(listener)) continue;
++                            _current = listener;
++                            return true;
++                        }
++                        _phase = Phase.Done;
++                        return false;
++
++                    default:
++                        return false;
++                }
++            }
++        }
++
++        public void Dispose()
++        {
++            if (_relicBuffer is not null)
++            {
++                HookListenerBuffers.Return(_relicBuffer);
++                _relicBuffer = null;
++            }
++            if (_combatBuffer is not null)
++            {
++                HookListenerBuffers.Return(_combatBuffer);
++                _combatBuffer = null;
++            }
++            _fallback?.Dispose();
++            _fallback = null;
++            _phase = Phase.Done;
++        }
++
++        public void Reset() => throw new NotSupportedException();
++    }
++}
+diff --git a/src/Sts2Sim.Core/Hooks/HookSkipIndex.cs b/src/Sts2Sim.Core/Hooks/HookSkipIndex.cs
+new file mode 100644
+index 0000000..633c050
+--- /dev/null
++++ b/src/Sts2Sim.Core/Hooks/HookSkipIndex.cs
+@@ -0,0 +1,146 @@
++using System.Collections.Concurrent;
++using System.Reflection;
++using System.Runtime.CompilerServices;
++using Sts2Sim.Core.Models;
++
++namespace Sts2Sim.Core.Hooks;
++
++/// <summary>Hook methods whose dispatch loops may pass over listeners that keep AbstractModel's own implementation
++/// (see <see cref="HookSkipIndex"/>). Each value names the AbstractModel virtual of the same name.</summary>
++internal enum HookSlot : byte
++{
++    None = 0,
++    ShouldAllowHitting, ShouldPlay,
++    ModifyDamageAdditive, ModifyDamageMultiplicative, ModifyDamageCap,
++    ModifyHpLostBeforeOsty, ModifyHpLostBeforeOstyLate, ModifyHpLostAfterOsty, ModifyHpLostAfterOstyLate,
++    AfterModifyingHpLostBeforeOsty, AfterModifyingHpLostAfterOsty,
++    AfterCardDrawnEarly, AfterCardDrawn,
++    BeforeDamageReceived, AfterDamageReceived, AfterCurrentHpChanged,
++    AfterSideTurnStart, AfterSideTurnStartLate,
++    ModifyPowerAmountGivenAdditive, ModifyPowerAmountGivenMultiplicative, TryModifyPowerAmountReceived,
++    AfterModifyingPowerAmountReceived, BeforePowerAmountChanged, AfterPowerAmountChanged,
++    ModifyBlockAdditive, ModifyBlockMultiplicative, AfterModifyingBlockAmount,
++    ModifyCardPlayCount, AfterModifyingCardPlayCount, ModifyCardPlayResultLocation, ModifyOrbValue,
++    AfterBlockCleared, BeforeCardPlayed, BeforeAttack,
++    Count,
++}
++
++/// <summary>
++/// Perf only. A listener may be passed over by a dispatch loop for <see cref="HookSlot"/> S when that loop would
++/// do nothing observable with it:
++/// <list type="bullet">
++/// <item>its runtime type is one of the eight known hook model types (others keep the eligibility guard, which
++/// throws for unsupported types);</item>
++/// <item>the type's implementation of S is AbstractModel's own: the neutral constant or pass-through
++/// (<c>true</c>, <c>0m</c>, <c>1m</c>, <c>decimal.MaxValue</c>, the incoming value, <c>false</c> with the
++/// incoming value, or <c>Task.CompletedTask</c>), which each converted dispatcher folds as an exact no-op
++/// (decimal <c>x + 0m</c> and <c>x * 1m</c> keep every bit of x, including scale and sign);</item>
++/// <item>no <see cref="AbstractModel.ExecutionFinished"/> handler is attached (for slots whose loop calls
++/// <c>InvokeExecutionFinished</c>).</item>
++/// </list>
++/// The eligibility guard is then pure and its result irrelevant, so skipping it changes nothing for well-formed
++/// listeners. Type data is immutable; metadata failures make a type never skippable (fail-closed).
++/// </summary>
++internal static class HookSkipIndex
++{
++    private static readonly MethodInfo?[] BaseSlots = ResolveBaseSlots();
++    private static readonly ulong NotifyingSlots = MaskOf(
++        HookSlot.AfterModifyingHpLostBeforeOsty, HookSlot.AfterModifyingHpLostAfterOsty,
++        HookSlot.AfterCardDrawnEarly, HookSlot.AfterCardDrawn,
++        HookSlot.BeforeDamageReceived, HookSlot.AfterDamageReceived, HookSlot.AfterCurrentHpChanged,
++        HookSlot.AfterSideTurnStart, HookSlot.AfterSideTurnStartLate,
++        HookSlot.AfterModifyingPowerAmountReceived, HookSlot.BeforePowerAmountChanged, HookSlot.AfterPowerAmountChanged,
++        HookSlot.AfterModifyingBlockAmount, HookSlot.AfterModifyingCardPlayCount,
++        HookSlot.AfterBlockCleared, HookSlot.BeforeCardPlayed, HookSlot.BeforeAttack);
++    private static readonly ConcurrentDictionary<Type, ulong> Masks = new();
++
++    private const int CacheSize = 256;
++    [ThreadStatic] private static Type?[]? t_types;
++    [ThreadStatic] private static ulong[]? t_masks;
++
++    internal static bool CanSkip(AbstractModel model, HookSlot slot)
++    {
++        ulong bit = 1UL << (int)slot;
++        if ((SkippableMask(model.GetType()) & bit) == 0) return false;
++        return (NotifyingSlots & bit) == 0 || !model.HasExecutionFinishedHandlers;
++    }
++
++    private static ulong SkippableMask(Type type)
++    {
++        Type?[]? types = t_types;
++        ulong[]? masks = t_masks;
++        if (types is null || masks is null)
++        {
++            t_types = types = new Type?[CacheSize];
++            t_masks = masks = new ulong[CacheSize];
++        }
++        int index = RuntimeHelpers.GetHashCode(type) & (CacheSize - 1);
++        if (ReferenceEquals(types[index], type)) return masks[index];
++        ulong mask = Masks.GetOrAdd(type, static t => Resolve(t));
++        types[index] = type;
++        masks[index] = mask;
++        return mask;
++    }
++
++    private static ulong MaskOf(params HookSlot[] slots)
++    {
++        ulong mask = 0;
++        foreach (HookSlot slot in slots) mask |= 1UL << (int)slot;
++        return mask;
++    }
++
++    private static MethodInfo?[] ResolveBaseSlots()
++    {
++        var slots = new MethodInfo?[(int)HookSlot.Count];
++        MethodInfo[] declared = typeof(AbstractModel).GetMethods(
++            BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly);
++        for (int i = 1; i < slots.Length; i++)
++        {
++            string name = ((HookSlot)i).ToString();
++            MethodInfo[] candidates = Array.FindAll(declared, m => m.Name == name && m.IsVirtual);
++            // A missing or overloaded name disables the slot: it is never skipped.
++            slots[i] = candidates.Length == 1 ? candidates[0] : null;
++        }
++        return slots;
++    }
++
++    // Bit i set: type keeps AbstractModel's implementation of slot i.
++    private static ulong Resolve(Type runtimeType)
++    {
++        try
++        {
++            if (!typeof(PowerModel).IsAssignableFrom(runtimeType) && !typeof(MonsterModel).IsAssignableFrom(runtimeType)
++                && !typeof(OrbModel).IsAssignableFrom(runtimeType) && !typeof(CardModel).IsAssignableFrom(runtimeType)
++                && !typeof(RelicModel).IsAssignableFrom(runtimeType) && !typeof(PotionModel).IsAssignableFrom(runtimeType)
++                && !typeof(Models.Afflictions.AfflictionModel).IsAssignableFrom(runtimeType)
++                && !typeof(EnchantmentModel).IsAssignableFrom(runtimeType))
++                return 0;
++            ulong mask = 0;
++            for (int i = 1; i < BaseSlots.Length; i++)
++            {
++                MethodInfo? baseSlot = BaseSlots[i];
++                if (baseSlot is null) continue;
++                MethodInfo? implementation = null;
++                for (Type? current = runtimeType; current is not null && implementation is null; current = current.BaseType)
++                {
++                    // DeclaredOnly keeps hidden new slots from obscuring inherited overrides.
++                    foreach (MethodInfo method in current.GetMethods(BindingFlags.Instance |
++                        BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
++                    {
++                        if (method.IsVirtual && method.GetBaseDefinition().MethodHandle == baseSlot.MethodHandle)
++                        {
++                            implementation = method;
++                            break;
++                        }
++                    }
++                }
++                if (implementation is not null && implementation.MethodHandle == baseSlot.MethodHandle) mask |= 1UL << i;
++            }
++            return mask;
++        }
++        catch (Exception error) when (error is not OutOfMemoryException and not AccessViolationException)
++        {
++            return 0;
++        }
++    }
++}
+diff --git a/src/Sts2Sim.Core/Models/AbstractModel.cs b/src/Sts2Sim.Core/Models/AbstractModel.cs
+index 1535346..1d8fb50 100644
+--- a/src/Sts2Sim.Core/Models/AbstractModel.cs
++++ b/src/Sts2Sim.Core/Models/AbstractModel.cs
+@@ -55,6 +55,9 @@ public abstract class AbstractModel : IComparable<AbstractModel>
+ 
+     public event Action<AbstractModel>? ExecutionFinished;
+ 
++    // Perf: lets Hooks.HookSkipIndex keep every InvokeExecutionFinished call that has a handler.
++    internal bool HasExecutionFinishedHandlers => ExecutionFinished is not null;
++
+     protected AbstractModel()
+     {
+         Type type = GetType();
+diff --git a/src/Sts2Sim.Core/Models/ModelDb.cs b/src/Sts2Sim.Core/Models/ModelDb.cs
+index abd77cd..b557ebd 100644
+--- a/src/Sts2Sim.Core/Models/ModelDb.cs
++++ b/src/Sts2Sim.Core/Models/ModelDb.cs
+@@ -55,9 +55,12 @@ public static class ModelDb
+         return GetId(typeof(T));
+     }
+ 
++    // Perf: the id is a pure function of the type (two regex slugs); ModelId is an immutable record.
++    private static readonly System.Collections.Concurrent.ConcurrentDictionary<Type, ModelId> _idByType = new();
++
+     public static ModelId GetId(Type type)
+     {
+-        return new ModelId(GetCategory(type), GetEntry(type));
++        return _idByType.GetOrAdd(type, static t => new ModelId(GetCategory(t), GetEntry(t)));
+     }
+ 
+     public static Type GetCategoryType(Type type)
+diff --git a/src/Sts2Sim.Core/Runs/RunState.cs b/src/Sts2Sim.Core/Runs/RunState.cs
+index 1633545..293805f 100644
+--- a/src/Sts2Sim.Core/Runs/RunState.cs
++++ b/src/Sts2Sim.Core/Runs/RunState.cs
+@@ -82,6 +82,9 @@ public sealed partial class RunState : IRunState
+ 
+     public IReadOnlyList<Player> Players => _players;
+ 
++    // Perf: the concrete list for Hooks.HookListenerSequence (same enumerator as IterateHookListeners).
++    internal List<Player> PlayerList => _players;
++
+     public HeadlessProgress Progress { get; }
+     public int WongoPointsEarned { get; internal set; }
+     public bool FreedRepy { get; internal set; }
+@@ -592,15 +595,30 @@ public sealed partial class RunState : IRunState
+         {
+             // Hooks may obtain a relic (for example a merchant relic purchase), so
+             // enumerate a stable listener snapshot for this dispatch.
+-            foreach (RelicModel relic in player.Relics.ToArray())
++            // Perf: the snapshot lives in a pooled buffer (same contents and timing as Relics.ToArray()).
++            List<AbstractModel> relics = Hooks.HookListenerBuffers.Rent();
++            try
++            {
++                IReadOnlyList<RelicModel> source = player.Relics;
++                for (int i = 0; i < source.Count; i++)
++                    relics.Add(source[i]);
++                for (int i = 0; i < relics.Count; i++)
++                {
++                    var relic = (RelicModel)relics[i];
++                    if (!relic.IsMelted)
++                        yield return relic;
++                }
++            }
++            finally
+             {
+-                if (!relic.IsMelted)
+-                    yield return relic;
++                Hooks.HookListenerBuffers.Return(relics);
+             }
+ 
+-            foreach (PotionModel potion in player.PotionSlots.OfType<PotionModel>())
++            // Same live enumerator as OfType<PotionModel>() (non-null slots, List version checks).
++            foreach (PotionModel? potion in player.PotionSlots)
+             {
+-                yield return potion;
++                if (potion is not null)
++                    yield return potion;
+             }
+ 
+             if (childCombatState is null)
+@@ -612,7 +630,23 @@ public sealed partial class RunState : IRunState
+             }
+         }
+ 
+-        if (childCombatState != null)
++        if (childCombatState is CombatState combat)
++        {
++            // Perf: the combat snapshot is taken at the same point as childCombatState.IterateHookListeners()
++            // (when enumeration reaches it), into a pooled buffer instead of a new list.
++            List<AbstractModel> listeners = Hooks.HookListenerBuffers.Rent();
++            try
++            {
++                combat.AppendHookListeners(listeners, includePlayerInventory: false);
++                for (int i = 0; i < listeners.Count; i++)
++                    yield return listeners[i];
++            }
++            finally
++            {
++                Hooks.HookListenerBuffers.Return(listeners);
++            }
++        }
++        else if (childCombatState != null)
+         {
+             foreach (AbstractModel listener in childCombatState.IterateHookListeners())
+             {

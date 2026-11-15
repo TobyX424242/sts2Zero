@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <AssemblyName>Sts2Sim.S0</AssemblyName>
+    <RootNamespace>Sts2Sim.S0</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../sims/iRyougi-sts2-sim/src/Sts2Sim.Core/Sts2Sim.Core.csproj" />
+  </ItemGroup>
+</Project>
