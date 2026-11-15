@@ -60,7 +60,8 @@ dotnet build src/s2/S2/S2.csproj -c Release -m:8
 dotnet build src/s3/S3/S3.csproj -c Release -m:8
 ```
 
-A Python 3.12 venv at `./.venv` with PyTorch, NumPy and orjson is expected by the scripts. The battle-start pools,
+A Python 3.12 venv at `./.venv` with PyTorch, NumPy and orjson is expected by the scripts; see
+`requirements.txt`. The battle-start pools,
 T_f tables, training chunks and checkpoints are **not** in the repository; `run_s3.sh` and `run_selfplay.sh` take
 `MACRO_INIT`, `COMBAT_INIT`, `STARTS` and `TABLES` environment variables. See [`doc/code-map.md`](doc/code-map.md).
 
