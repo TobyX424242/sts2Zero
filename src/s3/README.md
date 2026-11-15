@@ -27,7 +27,7 @@ This file is the code guide.
 | `eval_asc_sweep.sh` | One checkpoint at A0-A10 on the same seeds |
 | `data/macro_vocab.json` | Macro vocabulary for C# (the S1 checkpoint itself is not redistributed) |
 | `data/boss2_w2.json` | Logistic double-boss model fitted on self-play logs (`fit_boss2.py`) |
-| `tools` in the parent | `a10val_*.py`, `alloc_compare.py`, `curve_runs.py`, `fit_boss2.py`, `value_calib.py`, ...: analysis scripts named after the experiments in `doc/experiments.md` |
+| analysis scripts | `a10val_*.py`, `alloc_compare.py`, `curve_runs.py`, `fit_boss2.py`, `value_calib.py`, ...: analysis tools named after the experiments in `doc/experiments.md` |
 
 ## How a run is played (`RunAgent`)
 

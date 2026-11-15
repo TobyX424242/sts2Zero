@@ -24,7 +24,7 @@ is 50%; the best published end-to-end agent (AlphaDefect) claims 70.9% in its ow
 | S2 combat warm-up (1M self-play fights) | search 64 wins 91.8% of 9,461 held-out battle starts, rel. T_f 0.594; network alone 87.2% / 0.554; true-future upper bound 93.9% / 0.620 |
 | S3 full self-play (1.28M runs) | A10 win rate 0% at 53k runs -> 31.3% at 1.28M runs; mean floor 27.4 -> 43.6; act 2 cleared 8% -> 80% |
 | Ascension sweep of an earlier S3 checkpoint (s037) | A0 92.9%, A5 91.5%, A8 81.2%, A9 48.1%, A10 19.5% (154 seeds each) |
-| Best checkpoint | segment 45: 94/300 A10 wins (31.3%, 95% CI 26.3-36.8) |
+| Last recorded checkpoint | segment 45: 94/300 A10 wins (31.3%, 95% CI 26.3-36.8) |
 
 Key data: [`doc/results.md`](doc/results.md), [`doc/data/s3_curve.csv`](doc/data/s3_curve.csv),
 [`doc/data/ascension_sweep.csv`](doc/data/ascension_sweep.csv), [`doc/data/s1_final.json`](doc/data/s1_final.json).

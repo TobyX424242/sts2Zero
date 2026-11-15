@@ -98,7 +98,7 @@ A10 deaths (% of all A10 runs): act-3 boss 1 24.7%, act-3 boss 2 28.6%, act-2 bo
 hallway 3.2%, act-2 elite 2.6%, act-2 hallway 0.6%, act-1 elite 1.3%, other 1.3%. Top killers over all ascensions:
 Aeonglass 69, Test Subject 63, Queen 53, Knowledge Demon 28.
 
-The s037 checkpoint is earlier than segment 45 (19.5% vs 31.3% at A10).
+The s037 checkpoint is earlier than the last recorded point, segment 45 (19.5% vs 31.3% at A10).
 
 ## Improvement experiments
 
