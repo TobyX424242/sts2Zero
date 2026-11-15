@@ -1,21 +1,19 @@
 # Experiments
 
 Chronological record of what was tried, with the result that mattered. The original project log has thousands of
-lines of server metadata; this document keeps the experiment, the comparison, the number, and the decision. Raw
-per-segment logs are not redistributed.
+lines; this document keeps the experiment, the comparison, the number, and the decision.
 
 Conventions: win rates are Defect A10 on fixed evaluation seeds unless stated otherwise; "rel. T_f" is the mean
 T_f at fight end divided by the fight's table maximum; paired intervals are 95% unless stated. "Owner" marks a
 decision made by the project owner rather than a result.
 
-## 0. Early POC (one paragraph)
+## 0. Early POC
 
 Before S1, a 1.0M-parameter set transformer was trained on a balanced 100k-run sample of the Spire Codex dump. It
 reached test AUC 0.775 (0.745 within a floor) and transferred to a strong agent's states in ranking but not in scale
 (AUC 0.670 within floor, predicted 39% wins where the true rate was 74%). The review found three defects: floor
 sampling biased early floors low, the fight table used the pre-fight state (overpricing HP at bosses), and
-fight-outcome inputs inflated the apparent HP price. Those findings shaped S1, and the POC was then replaced. Its
-code, probes and checkpoints are intentionally not part of this repository.
+fight-outcome inputs inflated the apparent HP price. Those findings shaped S1, and the POC was then replaced.
 
 ## 1. S0: simulator extensions and M1 skeleton (2026-11-10 to 11)
 

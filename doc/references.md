@@ -72,19 +72,19 @@ full so they can be found without a fragile URL.
 
 | Work | Used for |
 |---|---|
-| AlphaDefect evaluation runs: https://github.com/hmty-CHEN/alphadefect-evaluation-runs | External reference: 2,000 published games of a 70.9% A10 Defect agent in its own engine; audited for consistency; used for POC transfer analysis, not in the final training |
+| AlphaDefect evaluation runs: https://github.com/hmty-CHEN/alphadefect-evaluation-runs | External reference: 2,000 published games of a 70.9% A10 Defect agent in its own engine; audited for consistency; used for the early feasibility analysis, not in the final training |
 | Epoch SpireClimb: https://epoch.ai/benchmarks/spireclimb | Best LLM agent reference (35% at A10, all characters, N=75) |
 | SpireBench. arXiv:2610.12596 | LLM + strategy guides on STS1; guides slightly hurt; risk valuation is the failure mode |
 | AgenticSTS. arXiv:2607.02255 | LLM + situation-triggered skills; small, not significant |
 | sts-rl-agent (STS1 hybrid): https://huggingface.co/Jialeiv/sts-rl-agent | MCTS combat + REINFORCE macro; rollout MCTS needs tens of thousands of simulations without a learned prior; distillation failed because search saw the future draw order |
 | evangambit/sts2: https://github.com/evangambit/sts2 | Determinised MCTS + transformer prior/value for combat; +2.0 HP per fight vs rollout; the design we build on |
 | iRyougi/sts2-sim: https://github.com/iRyougi/sts2-sim | The chosen simulator (MIT); source snapshot and patches in `src/sims` |
-| wuhao21/sts2-cli: https://github.com/wuhao21/sts2-cli | Real-DLL parity oracle; designed for, not included |
+| wuhao21/sts2-cli: https://github.com/wuhao21/sts2-cli | Real-DLL parity oracle |
 | STS2MCP: https://github.com/Gennadiyev/STS2MCP | Live-client bridge candidate for a real-game check |
 | CharTyr/STS2-Agent: https://github.com/CharTyr/STS2-Agent | Live-client bridge candidate |
 | xuxy-tech/An-agent-for-slay-the-spire-2: https://github.com/xuxy-tech/An-agent-for-slay-the-spire-2 | Related STS2 agent |
 | HalfVulpes/sts2ai. arXiv:2611.12088 | Reviewed after the snapshot for ideas (replayable run logs, observation hash, failure-driven restarts, common random numbers); not part of the architecture |
-| Spire Codex developer docs and exports: https://spire-codex.com/developers | Human-run data and entity exports; use confirmed with the maintainer, data not redistributed here |
+| Spire Codex developer docs and exports: https://spire-codex.com/developers | Human-run data and entity exports; use confirmed with the maintainer |
 | STS2 v0.111.0 beta patch notes: https://patchbot.io/games/slay-the-spire-2/articles/1131-beta-patch-notes-v01110 | Version pin |
 
 ## Tools

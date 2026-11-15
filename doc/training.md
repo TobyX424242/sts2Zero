@@ -87,7 +87,7 @@ See `doc/results.md` (G1 table) and `doc/data/s1_final.json`.
 - Each actor plays a battle start several times with different resampled chance (`group=3`).
 - Training: 1M-fight run, about 163k trainer steps, replay window 1M decisions, cosine learning rate 1e-3 -> 1e-5
   over the run. Outcome head from the start; the scalar head was run for the A20 comparison.
-- Final weights `s2p1` (not redistributed); they are the S3 combat initialisation.
+- Final weights `s2p1` are the S3 combat initialisation.
 
 ### Results
 

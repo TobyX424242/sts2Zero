@@ -165,7 +165,7 @@ in 1.5 h. The combat value head overfits: training survival loss 0.05 vs held-ou
 
 ## Data and checkpoints
 
-The human-run data, battle-start pools, T_f tables, training chunks and checkpoints are not included (see the
-top-level README). The JSON/CSV files in `doc/data/` are summaries only:
+The released S3 weights are in the GitHub release (see `doc/checkpoints.md`). Human warm-start runs come from
+Spire Codex. The JSON/CSV files in `doc/data/` are summaries only:
 [`s1_final.json`](data/s1_final.json), [`s1_scaling.csv`](data/s1_scaling.csv),
 [`s3_curve.csv`](data/s3_curve.csv), [`ascension_sweep.csv`](data/ascension_sweep.csv).

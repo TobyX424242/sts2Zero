@@ -35,9 +35,9 @@ Check the policy's input coverage separately from the value's monotonicity.
 
 ## 4. Human data ranks, but its scale and prices are wrong for a strong agent
 
-**Evidence.** The POC model transferred in ranking to a 70.9% agent's states (within-floor AUC 0.670 vs 0.676 on
-human states) but predicted 39% wins where the true rate was 74%; after recalibration, +10 HP was worth 1.1-1.4
-points against 1.7 / 2.9 / 3.9 raw. The S1 model's human HP price was 2.2 / 3.5 / 4.2 points per 10 HP by act.
+**Evidence.** An early trial model transferred in ranking to a 70.9% agent's states (within-floor AUC 0.670 vs
+0.676 on human states) but predicted 39% wins where the true rate was 74%; after recalibration, +10 HP was worth
+1.1-1.4 points against 1.7 / 2.9 / 3.9 raw. The S1 model's human HP price was 2.2 / 3.5 / 4.2 points per 10 HP by act.
 
 **Implication.** Use human data to initialise representations, not to set the prices of a stronger agent. This is why
 S3 retrains V_run on its own outcomes and rebuilds T_f at every fight. The "value is a prediction, not a price" issue

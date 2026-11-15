@@ -15,12 +15,12 @@ Builds on `research/s0` (iRyougi + S0 patch, resampling clone, action space, enc
 | `export_starts.py` | Battle-start pool from the full dump (Defect A10 v0.111.0), held-out 5% of runs |
 | `make_tables.py` | Batched T_f tables for the pool (S1 macro ensemble; same construction as `s0/make_tf_tables.py`) |
 | `run_selfplay.sh`, `eval_ckpt.sh`, `summarize_eval.py`, `bench_actors.sh` | Run scripts |
-| `data/` | `starts_*_{train,eval}.jsonl`, `tables_*_{train,eval}.jsonl` (run-derived; **not included** in this repository) |
+| `data/` | `starts_*_{train,eval}.jsonl`, `tables_*_{train,eval}.jsonl` (run-derived, supplied separately) |
 | `runs/<name>/` | weights.pt (current), ckpt/, data/ (chunks), fights/ (per-fight logs), logs/ (created at run time) |
 
-This repository contains the code only. The battle-start pool, T_f tables and all checkpoints are derived from
-Spire Codex runs and are not redistributed; see `doc/experiments.md` for how they were built and `doc/code-map.md`
-for the paths the scripts expect.
+The battle-start pool and T_f tables are derived from Spire Codex runs; see `doc/experiments.md` for how they
+were built and `doc/code-map.md` for the paths the scripts expect. The released S3 checkpoints are in the GitHub
+release.
 
 ## How the macro network guides the combat network (PROPOSAL.md §4.2, D13)
 

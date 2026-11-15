@@ -64,13 +64,13 @@ dotnet $T resample 60 10000 L 3000      # clone / resample / encoder checks
 dotnet $T choices 10 10 4 B 3000        # card prompts inside clones
 ```
 
-The `import` and `m1` commands need a battle-start JSON; the repository ships only the vocabulary. The checks and
-their expected output are in `src/s0/README.md`.
+The `import` and `m1` commands need a battle-start JSON; the checks and their expected output are in
+`src/s0/README.md`.
 
 ### S2 self-play / evaluation
 
 ```bash
-# self-play: name, actors, seconds; STARTS and TABLES must point at the pool (not included)
+# self-play: name, actors, seconds; STARTS and TABLES point at the battle-start pool
 STARTS=/path/starts_train.jsonl TABLES=/path/tables_train.jsonl \
   src/s2/run_selfplay.sh NAME 16 3600
 
@@ -83,11 +83,11 @@ STARTS=/path/starts_eval.jsonl TABLES=/path/tables_eval.jsonl \
 ### S3 training / evaluation
 
 ```bash
-# training; COMBAT_INIT and MACRO_INIT are checkpoints (not included)
+# training; COMBAT_INIT and MACRO_INIT are the released S3 checkpoints
 COMBAT_INIT=/path/combat.pt MACRO_INIT=/path/macro.pt \
   ASC=10 CONC=32 src/s3/run_s3.sh NAME 26 7200
 
-# evaluation on fixed seeds; COMBAT.pt and MACRO.pt are not included
+# evaluation on fixed seeds; pass the released combat and macro checkpoints
 COUNT=300 ASC=10 src/s3/eval_s3.sh COMBAT.pt MACRO.pt runs/eval_X 8 \
   "tf64:64 hp64:64:scorer=hp"
 ```
@@ -149,15 +149,7 @@ The `*.py` files at the top of `src/s3` and `src/s2` are the analysis tools quot
 `a10val_*` (value analysis), `alloc_compare.py` (search allocation), `asc_sweep_report.py`,
 `curve_runs.py`, `diag_runs.py`, `fit_boss2.py`, `summarize_runs.py`, `tf_dump_report.py`, `value_calib.py`,
 `value_replay_report.py`, `table_diagnostics.py`, `human_reference.py`, `compare_heads.py`, `curve_by_time.py`.
-They read run/fight logs or chunks; no run data is included.
-
-## Not included / not to look for
-
-- `panel/` (training watch panel), `s3_supervise.sh` / `s3_resume.sh` (server supervisor), `backup_loop.sh`,
-  `server_sync_loop.sh`, `pull_backup.sh` (Nextcloud backup), server setup/deploy/restart scripts, SSH keys.
-- The early POC: `value_fn/`, `review_v1/`, `value_v1/train_value.py`'s trial-1 runs, AlphaDefect replay analysis
-  (the shared `src/value_v1` modules are kept because S1 imports them).
-- Game files, decompiled game assembly, Spire Codex run data, checkpoints, training chunks, evaluation logs.
+They read run/fight logs or chunks.
 
 ## Common pitfalls
 

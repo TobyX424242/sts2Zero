@@ -36,3 +36,6 @@ archive/
 
 # OS
 .DS_Store
+
+# Release staging
+release-assets/

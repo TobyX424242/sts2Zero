@@ -13,8 +13,8 @@ Code for PROPOSAL.md section 6.1, items 3-6, on top of iRyougi/sts2-sim at commi
 | `S0.Sim/CombatObservation.cs` | draft combat-network token encoder (deliverable 4) |
 | `S0Tests/Program.cs` | console test runner: `resample`, `choices`, `import` |
 | `export_battle_starts.py` | Spire Codex runs -> battle-start JSON lines (uses `value_v1/build_floor_dataset.reconstruct`, read-only) |
-| `data/` | `combat_vocab_v1.json` (ids used by the network). The exported battle starts are run-derived data and are not redistributed. |
-| `out/` | test outputs quoted below (not included) |
+| `data/` | `combat_vocab_v1.json` (ids used by the network); exported battle starts are run-derived and supplied separately. |
+| `out/` | test outputs quoted below |
 | `src/sims/patches/iryougi_s0.patch` | changes to the iRyougi clone (`git diff` against db844ad + the local patch) |
 
 ## Changes to iRyougi (`src/sims/patches/iryougi_s0.patch`)
@@ -123,7 +123,7 @@ dotnet $T import research/s0/data/battle_starts_v0.111.0_defect_1000.jsonl 1000 
 
 New files: `S0.Sim/ActionSpace.cs`, `S0.Sim/Search.cs`, `S0.Sim/ObsLayout.cs`, `S0.Sim/Bridge.cs`,
 `S0Tests/{ActionTests,M1,EncodeExport,BridgeBench}.cs`, `py/{combat_obs.py,test_roundtrip.py,bridge_server.py}`,
-`data/combat_vocab_v1.json` (the `obs_v1_1000/` test export is not redistributed). No further iRyougi changes (`src/sims/patches/iryougi_s0.patch` unchanged).
+`data/combat_vocab_v1.json`. No further iRyougi changes (`src/sims/patches/iryougi_s0.patch` unchanged).
 
 ## Action space (`ActionSpace`)
 `ActionSpace.LegalAsync(state, includePotions, expandSelections)` / `Base(state)` return `SearchAction`s: card plays

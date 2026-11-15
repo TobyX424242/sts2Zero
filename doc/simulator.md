@@ -5,8 +5,7 @@
 `src/sims/iRyougi-sts2-sim/` is a source snapshot of the MIT-licensed
 [iRyougi/sts2-sim](https://github.com/iRyougi/sts2-sim) at commit `db844ad` (2026-11-10), with four local patches
 applied. The upstream `LICENSE` (MIT, Copyright (c) 2026 iRyougi and contributors), `README.md`, solution and test
-suite are retained. Build outputs and upstream git history are not included. The tree contains no Slay the Spire 2
-game files.
+suite are retained. The tree contains no Slay the Spire 2 game files.
 
 The patches are also stored separately in `src/sims/patches/` for auditability:
 

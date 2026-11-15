@@ -25,7 +25,7 @@ This file is the code guide.
 | `run_s3.sh` | Local training run: combat trainer + macro trainer + inference servers + N actors |
 | `eval_s3.sh` | Evaluation on fixed run seeds |
 | `eval_asc_sweep.sh` | One checkpoint at A0-A10 on the same seeds |
-| `data/macro_vocab.json` | Macro vocabulary for C# (the S1 checkpoint itself is not redistributed) |
+| `data/macro_vocab.json` | Macro vocabulary for C# |
 | `data/boss2_w2.json` | Logistic double-boss model fitted on self-play logs (`fit_boss2.py`) |
 | analysis scripts | `a10val_*.py`, `alloc_compare.py`, `curve_runs.py`, `fit_boss2.py`, `value_calib.py`, ...: analysis tools named after the experiments in `doc/experiments.md` |
 
@@ -122,7 +122,7 @@ dotnet build src/s3/S3/S3.csproj -c Release -m:8
 # encoder round trip
 dotnet src/s3/S3/bin/Release/net9.0/S3.dll encode runs=300 ascension=0 out=runs/encode_a0
 ./.venv/bin/python -I src/s3/py/roundtrip_macro.py runs/encode_a0
-# training run: name, actors, seconds (COMBAT_INIT / MACRO_INIT must point at checkpoints; not included)
+# training run: name, actors, seconds (COMBAT_INIT / MACRO_INIT point at the released checkpoints)
 ASC=0 CONC=16 MTRAIN_ARGS="--runs-per-iter 256" src/s3/run_s3.sh NAME 12 2400
 # evaluation on fixed seeds: combat weights, macro file, output, actors, arms
 COUNT=210 ASC=0 src/s3/eval_s3.sh COMBAT.pt MACRO.pt runs/eval_X 8 "tf64:64 hp64:64:scorer=hp"
@@ -147,7 +147,3 @@ decision); card-reward alternatives given by relics are never chosen; V_run has 
 the MAP head alone; relic counters and forecasts are not in the combat input; in-flight runs are finished, not aborted,
 at the time limit.
 
-## Not part of this repository
-
-The server-side supervisor, status/backup tooling and the local training panel are intentionally excluded. Training
-chunks and checkpoints are not redistributed. See `doc/code-map.md`.

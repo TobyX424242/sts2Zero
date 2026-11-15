@@ -1,6 +1,6 @@
 # Result data
 
-Small summaries only. Raw run logs, training chunks, checkpoints and per-segment metadata are not redistributed.
+Curated summaries of the result data.
 
 | File | Content | Source |
 |---|---|---|
@@ -14,6 +14,6 @@ Notes:
 - `s3_curve.csv` has gaps where a segment had no evaluation (15, 31) and duplicate evaluation lines were collapsed to
   the last one for a segment.
 - The S3 win percentages in the CSV are rounded as the evaluation printed them; confidence intervals are in
-  `doc/results.md` for the selected points and in the original logs (not included).
+  `doc/results.md` for the selected points.
 - The ascension sweep is from an earlier checkpoint (s037). The final curve point (segment 45) is 31.3% at A10, later
   than the sweep.

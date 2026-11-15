@@ -3,9 +3,9 @@
 The macro network predicts the run outcome V_run = P(win) from the state after a floor and a policy over the
 out-of-combat choices. S1 is the warm start; S3 retrains the same network on the agent's own runs.
 
-Code origin: `value_v2` in the working tree. The directory is named `s1` here; `src/value_v2` is a compatibility
-symlink for the original imports. The shared reconstruction and base trainer live in `src/value_v1` (the trial-1
-model and its review experiments are not part of this repository).
+Code origin: the working tree's `value_v2` stage. The directory is named `s1` here; `src/value_v2` is a
+compatibility symlink for the original imports. The shared reconstruction and base trainer live in
+`src/value_v1`.
 
 | File | What |
 |---|---|
@@ -51,7 +51,7 @@ At 25k-300k runs the no-attention model also wins or ties. Full table in `doc/da
 ## Commands
 
 ```bash
-# data are not included; D points at runs-latest.jsonl.gz + meta_all.csv.gz
+# D points at your runs-latest.jsonl.gz + meta_all.csv.gz (Spire Codex)
 D=data/spire_codex F=runs/floors_v2 src/s1/run_s1_scaling.sh
 F=runs/floors_v2 src/s1/run_macro_full.sh
 F=runs/floors_v2 src/s1/run_macro_ensemble.sh
@@ -59,4 +59,4 @@ F=runs/floors_v2 src/s1/run_s1_finalize.sh
 ```
 
 `PY` defaults to `./.venv/bin/python`; the scripts run from the repository root. The resulting five members are
-packaged as one ensemble checkpoint for S3 (not redistributed).
+packaged as one ensemble checkpoint for S3.

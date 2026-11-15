@@ -1,0 +1,68 @@
+{
+  "project": "sts2Zero",
+  "release": "v0.1.0-s045",
+  "code_ref": "v0.1.0-s045",
+  "stage": "S3 self-play, segment 45 (s3a_s045)",
+  "date": "2026-11-15",
+  "evaluation": {
+    "ascension": 10,
+    "seeds": 300,
+    "wins": 94,
+    "win_rate": 0.3133,
+    "ci95": [
+      0.263,
+      0.368
+    ],
+    "selfplay_runs": 1276289,
+    "checkpoint_eval": "greedy macro, 64 simulations on every move"
+  },
+  "combat_weights": {
+    "file": "s3_s045_weights.pt",
+    "role": "playing combat network at segment 45 (the 31.3% evaluation)",
+    "config": {
+      "d": 128,
+      "layers": 2,
+      "heads": 4,
+      "head": "outcome",
+      "obs": 5
+    },
+    "state_tensors": 684234
+  },
+  "combat_shadow": {
+    "file": "s3_s045_shadow.pt",
+    "role": "layout-v4/v5 ext combat network; the network segment 46 continues from",
+    "config": {
+      "d": 128,
+      "layers": 2,
+      "heads": 4,
+      "head": "outcome",
+      "ext": 1,
+      "obs": 5
+    },
+    "state_tensors": 702410
+  },
+  "macro": {
+    "file": "s3_s045_macro.pt",
+    "role": "S3 macro ensemble and policy at segment 45",
+    "members": 5,
+    "milestones": false
+  },
+  "contents": "Network weights only. No replay buffer or optimizer state is included.",
+  "assets": [
+    {
+      "file": "s3_s045_weights.pt",
+      "bytes": 5505333,
+      "sha256": "ad1ef93f86ae3a33fd0ab9299b36c38ec1864ad4c8211f2915e66df7282e872e"
+    },
+    {
+      "file": "s3_s045_macro.pt",
+      "bytes": 31122456,
+      "sha256": "1d5194cbaa9cb24043a7f943edd60abd5a6346ef14ef6a1805b5871e6843e1b7"
+    },
+    {
+      "file": "s3_s045_shadow.pt",
+      "bytes": 5653327,
+      "sha256": "37a70f224092643956b5e8dab9c16436966e2b07a82262cfe8b5d756ba1d1572"
+    }
+  ]
+}
