@@ -2,7 +2,8 @@
 
 **A hybrid Slay the Spire 2 agent: a macro value network plus AlphaZero-style search in every fight.**
 
-`sts2Zero` plays **Defect, Ascension 10, game v0.111.0** in the MIT-licensed
+The name reflects the AlphaZero-style combination of a learned policy/value and search; the macro/combat split is
+specific to a full game. `sts2Zero` plays **Defect, Ascension 10, game v0.111.0** in the MIT-licensed
 [iRyougi/sts2-sim](https://github.com/iRyougi/sts2-sim) simulator. It combines:
 
 - a **macro network** that makes every out-of-combat decision and predicts the run value `V_run` (P(win));
