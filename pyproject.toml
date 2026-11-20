@@ -1,0 +1,35 @@
+# Python environment of sts2Zero (inference servers, training and analysis scripts).
+# Set up with scripts/setup.sh (Linux) or scripts/setup.ps1 (Windows), or directly: uv sync
+#
+# torch comes from the PyTorch CUDA 12.8 wheel index on Linux and Windows. CUDA 12.8 builds run on
+# NVIDIA RTX 20xx to RTX 50xx (sm_75 to sm_120) with a recent driver (R570 or newer). The same wheels
+# also run on the CPU when no NVIDIA GPU is present. Other systems (macOS) get the CPU wheels from PyPI.
+[project]
+name = "sts2zero"
+version = "0.2.0"
+description = "AlphaZero-style agent for Slay the Spire 2 (inference servers and Python tooling)"
+license = "MIT"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "torch==2.7.1",
+    "numpy>=2.0",
+    "orjson>=3.10",
+]
+
+[tool.uv]
+package = false
+environments = [
+    "sys_platform == 'linux'",
+    "sys_platform == 'win32'",
+    "sys_platform == 'darwin'",
+]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu128", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true

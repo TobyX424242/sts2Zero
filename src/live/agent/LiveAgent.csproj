@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <!-- Live play controller (src/live/README.md). Build ONLY through build.sh (or with the same
-       artifacts path): the simulator under src/sims is shared with the training chain (a symlink to the main
-       checkout), and the artifacts path keeps every bin/obj of this build (S3, S2, S0, Sts2Sim.Core included) under
-       src/live/agent/artifacts instead of the projects' own bin/obj directories. -->
+  <!-- Live play controller (src/live/README.md). Build through build.sh / play_live.sh / play_live.ps1, or by hand
+       with the artifacts-path option set to src/live/agent/artifacts: the simulator under src/sims is shared
+       with the training chain, and the artifacts path keeps every bin/obj of this build (S3, S2, S0, Sts2Sim.Core
+       included) out of the projects' own bin/obj directories. -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net9.0</TargetFramework>

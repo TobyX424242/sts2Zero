@@ -1,6 +1,7 @@
-# Python / tooling
+# Python / tooling (scripts/setup.sh: uv in .tools/, caches in .cache/)
 .venv/
 .cache/
+.tools/
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -39,3 +40,12 @@ archive/
 
 # Release staging
 release-assets/
+
+# Downloaded weights and prebuilt binaries (scripts/fetch_weights.sh)
+/weights/
+/bin/
+
+# Live play
+src/live/logs/
+src/live/weights/
+src/live/agent/artifacts/
