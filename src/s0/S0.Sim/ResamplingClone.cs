@@ -42,7 +42,20 @@ public static class ResamplingClone
     public static void ResampleInPlace(CombatState clone, ulong seed) => ResampleInPlace(clone, seed, shuffleDrawPile: true);
 
     /// <param name="shuffleDrawPile">false only for the leak test's negative control (RNG reseeded, draw order kept).</param>
-    public static void ResampleInPlace(CombatState clone, ulong seed, bool shuffleDrawPile)
+    public static void ResampleInPlace(CombatState clone, ulong seed, bool shuffleDrawPile) =>
+        ResampleInPlace(clone, seed, shuffleDrawPile, keepDraw: false, keepEnemy: false);
+
+    /// <summary>Partial resampling (2026-11-15 decomposition test, evaluation only): <paramref name="keepDraw"/> keeps
+    /// the true draw order and the shuffle stream, <paramref name="keepEnemy"/> keeps the monster AI stream and every
+    /// monster's own stream; everything else is drawn afresh as in <see cref="Resampled(CombatState, ulong)"/>.</summary>
+    public static CombatState ResampledPartial(CombatState state, ulong seed, bool keepDraw, bool keepEnemy)
+    {
+        CombatState clone = state.Clone(out _);
+        ResampleInPlace(clone, seed, shuffleDrawPile: !keepDraw, keepDraw, keepEnemy);
+        return clone;
+    }
+
+    private static void ResampleInPlace(CombatState clone, ulong seed, bool shuffleDrawPile, bool keepDraw, bool keepEnemy)
     {
         ArgumentNullException.ThrowIfNull(clone);
         if (!clone.IsProjection)
@@ -52,7 +65,11 @@ public static class ResamplingClone
             throw new NotSupportedException("Keyed (semantic-key) RNG mode cannot be resampled by stream.");
 
         foreach (RunRngType type in RunTypes)
+        {
+            if (keepDraw && type == RunRngType.Shuffle) continue;
+            if (keepEnemy && type == RunRngType.MonsterAi) continue;
             Reseed(runRng.GetRng(type), Mix(seed, 0x100 + (ulong)type));
+        }
 
         for (int p = 0; p < clone.Players.Count; p++)
         {
@@ -64,7 +81,7 @@ public static class ResamplingClone
         }
 
         foreach (Creature creature in clone.Allies.Concat(clone.Enemies))
-            if (creature.Monster is { Rng: { } monsterRng })
+            if (!keepEnemy && creature.Monster is { Rng: { } monsterRng })
                 Reseed(monsterRng, Mix(seed, 0x400 + (ulong)(creature.CombatId ?? 0)));
     }
 

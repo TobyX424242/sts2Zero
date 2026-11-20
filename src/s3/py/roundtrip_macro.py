@@ -4,7 +4,9 @@ of simulated runs (S3 encode ...: rows.jsonl) against the examples the S1 datase
 (runs.jsonl). Decks, relics and potions are compared as multisets (the networks are set encoders), context and scalars
 exactly, and the S1 network's value on both encodings.
 
-Usage: ./.venv/bin/python -I src/s3/py/roundtrip_macro.py src/s3/out/encode
+Usage: ./.venv/bin/python -I src/s3/py/roundtrip_macro.py src/s3/out/encode [MACRO.pt] [MVOCAB.json]
+ic113: the macro file must use the vocabulary the C# encoder used (default src/s3/data/macro_vocab_v113.json; a
+v0.111 file is converted by src/ic113/convert_v113.py); character and era come from the run records.
 """
 import collections, json, os, sys
 
@@ -21,7 +23,12 @@ import build_floor_dataset as bfd  # noqa: E402
 
 def main():
     d = sys.argv[1]
-    ens = m.Ensemble.load(os.path.join(HERE, "..", "data", "macro_s1.pt"), "cpu")
+    mp = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, "..", "data", "macro_s1.pt")
+    vpath = sys.argv[3] if len(sys.argv) > 3 else os.path.join(HERE, "..", "data", "macro_vocab_v113.json")
+    ens = m.Ensemble.load(mp, "cpu")
+    voc = json.load(open(vpath))
+    bad = [k for k in ("card", "ench", "relic", "potion", "encounter") if list(ens.vocab[k]) != list(voc[k])]
+    assert not bad, f"{mp} and {vpath} differ in {bad}: convert the macro file (src/ic113/convert_v113.py)"
     bfd.init_worker(ens.vocab)
     rows = collections.defaultdict(dict)
     for line in open(os.path.join(d, "rows.jsonl")):
@@ -32,7 +39,8 @@ def main():
     pi, pf, ci, cf = [], [], [], []
     for line in open(os.path.join(d, "runs.jsonl"), "rb"):
         run = json.loads(line)
-        meta = {"sample_id": 0, "character": "DEFECT", "ascension": run["ascension"], "era": m.ERA_V0111}
+        meta = {"sample_id": 0, "character": run["players"][0]["character"].replace("CHARACTER.", ""), "ascension": run["ascension"],
+                "era": int(run.get("era", m.ERA_V0111))}
         _, arr, miss, _, dropped, F, insane = bfd.build_run((line, meta))
         stats["runs"] += 1; stats["undo_misses"] += sum(miss.values()); stats["future_dropped"] += dropped
         if insane or not arr:
@@ -93,7 +101,13 @@ def main():
                 a3, b3 = cs(*dk3), ps(*dk3); a3.pop((0,) * 3, None); b3.pop((0,) * 3, None)
                 if a3 == b3 and all(k[2] != 0 or k[0] in run_dup for k in (a - b) + (b - a)):
                     upg_ambiguous = True; stats["floors_enchant_amount_drift"] += 1
-            if not upg_ambiguous:
+            # a deck of more than MAX_DECK cards (e.g. the Reflections event doubles it): both sides encode the first 64
+            # cards of their own list (the live deck order vs the rebuilt order), so which cards are cut differs; only the
+            # scalars (full deck size, upgrades) are compared on such floors (ic113)
+            trunc = bool(arr["deck_trunc"][i])
+            if trunc:
+                stats["floors_deck_over_64_not_compared"] += 1
+            elif not upg_ambiguous:
                 cmp("deck", a, b)
             rk = ("r_ids", "r_age")
             if g < last_relic_removed:
@@ -117,7 +131,7 @@ def main():
             for k in ("d_ids", "d_upg", "d_ench", "d_eamt", "d_age", "r_ids", "r_age", "p_ids", "ctx"):
                 J[o[k][0]:o[k][1]] = arr[k][i]
             G[:16] = arr["scal"][i]
-            if ok and not upg_ambiguous and g >= last_downgrade and g >= last_relic_removed:
+            if ok and not upg_ambiguous and not trunc and g >= last_downgrade and g >= last_relic_removed:
                 stats["floors_identical_inputs"] += 1
                 pi.append(J); pf.append(G); ci.append(I); cf.append(Fl)
     with torch.no_grad():
@@ -127,7 +141,7 @@ def main():
     out = {**stats, "mismatches_by_field": dict(bad), "value_abs_diff_max": float(dv.max()), "value_abs_diff_mean": float(dv.mean()),
            "mean_value": float((1 / (1 + np.exp(-vc))).mean())}
     # potions differ only when more than five are held (the dataset keeps the last five acquired, the encoder the last
-    # five slots); anything else must stay below 0.1% of floors
+    # five slots); decks over 64 cards are not compared card by card (counted above); anything else must stay below 0.1% of floors
     other = sum(v for k, v in bad.items() if k not in ("potions", "scal.n_potions"))
     out["PASS"] = bool(other <= 0.001 * stats["floors_compared"] and out["value_abs_diff_max"] < 1e-5
                        and stats["floors_only_python"] == 0 and stats["floors_only_csharp"] == 0)

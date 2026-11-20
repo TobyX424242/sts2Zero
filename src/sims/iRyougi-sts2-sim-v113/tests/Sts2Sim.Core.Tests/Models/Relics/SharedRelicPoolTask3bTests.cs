@@ -1,0 +1,537 @@
+using System.Reflection;
+using Sts2Sim.Core.Combat;
+using Sts2Sim.Core.Commands;
+using Sts2Sim.Core.Content;
+using Sts2Sim.Core.Content.Acts;
+using Sts2Sim.Core.Entities.Cards;
+using Sts2Sim.Core.Entities.Creatures;
+using Sts2Sim.Core.Entities.Merchant;
+using Sts2Sim.Core.Entities.Players;
+using Sts2Sim.Core.Entities.Relics;
+using Sts2Sim.Core.Entities.RestSite;
+using Sts2Sim.Core.Map;
+using Sts2Sim.Core.Models;
+using Sts2Sim.Core.Models.Cards;
+using Sts2Sim.Core.Models.Characters;
+using Sts2Sim.Core.Models.Enchantments;
+using Sts2Sim.Core.Models.Events;
+using Sts2Sim.Core.Models.Monsters;
+using Sts2Sim.Core.Models.Potions;
+using Sts2Sim.Core.Models.Relics;
+using Sts2Sim.Core.Rewards;
+using Sts2Sim.Core.Rooms;
+using Sts2Sim.Core.Runs;
+using Sts2Sim.Core.ValueProps;
+using Xunit;
+
+namespace Sts2Sim.Core.Tests.Models.Relics;
+
+// Test-only decision source and early-combat observer; all relic effects use production paths.
+[Collection("ModelDb")]
+public sealed class SharedRelicPoolTask3bTests : RelicModel, IRunDecisionSource, IDisposable
+{
+    public override RelicRarity Rarity => RelicRarity.Shop;
+    public MerchantRelicEntry? Purchase { get; set; }
+    public RewardsSet? Offer { get; set; }
+    public int RewardChoices { get; set; }
+    public CardSelectionRequest? Selection { get; set; }
+    public int SeaGlassPickCount { get; set; } = 2;
+    public List<RestSiteDecision> RestChoices { get; } = [];
+    public bool FillSlotsEarly { get; set; }
+    public int EarlyCalls { get; set; }
+    public void Dispose() => ModelDb.ResetForTests();
+
+    [Theory]
+    [InlineData(typeof(Cauldron))]
+    [InlineData(typeof(DingyRug))]
+    [InlineData(typeof(Kifuda))]
+    [InlineData(typeof(LastingCandy))]
+    [InlineData(typeof(MiniatureTent))]
+    [InlineData(typeof(Orrery))]
+    [InlineData(typeof(PetrifiedToad))]
+    [InlineData(typeof(PunchDagger))]
+    [InlineData(typeof(RoyalStamp))]
+    [InlineData(typeof(WingCharm))]
+    [InlineData(typeof(SeaGlass))]
+    public async Task SharedRelic_ImplementsAnObservableContract(Type relicType)
+    {
+        ModelDb.ResetForTests();
+        ModelDb.Init(ContentRegistry.AllTypes.Append(typeof(SharedRelicPoolTask3bTests)));
+        RunState run = NewRun("task3b-contract-" + relicType.Name);
+        Player player = run.Players[0];
+        RelicModel canonical = (RelicModel)ModelDb.Get(relicType);
+        if (relicType == typeof(Cauldron) || relicType == typeof(Orrery))
+            await VerifyMerchant(run, player, canonical);
+        else if (relicType == typeof(Kifuda) || relicType == typeof(PunchDagger) || relicType == typeof(RoyalStamp))
+        {
+            run.ConfigureCardSelectionSource(this);
+            CardModel[] before = player.Deck.Cards.ToArray();
+            int noncombatBefore = player.PlayerRng.NonCombatGeneration.Counter;
+            await RelicCmd.Obtain(canonical, player);
+            Assert.NotNull(Selection);
+            int count = relicType == typeof(Kifuda) ? 3 : 1;
+            Assert.Equal(count, Selection!.MaxCount);
+            Assert.Equal(relicType == typeof(Kifuda) ? 0 : 1, Selection.MinCount);
+            Assert.False(Selection.Cancelable);
+            CardModel[] enchanted = before.Where(card => card.Enchantments.Count != 0).ToArray();
+            Assert.Equal(count, enchanted.Length);
+            Assert.All(Selection.Candidates.Take(count), card => Assert.Contains(card, enchanted));
+            Assert.All(enchanted, card =>
+            {
+                EnchantmentModel enchantment = Assert.Single(card.Enchantments);
+                Assert.Equal(relicType == typeof(Kifuda) ? typeof(Adroit) : relicType == typeof(PunchDagger) ? typeof(Momentum) : typeof(RoyallyApproved), enchantment.GetType());
+                Assert.Equal(relicType == typeof(Kifuda) ? 3m : relicType == typeof(PunchDagger) ? 5m : 1m, enchantment.Magnitude);
+            });
+            if (relicType == typeof(RoyalStamp))
+            {
+                Assert.True(player.PlayerRng.NonCombatGeneration.Counter > noncombatBefore);
+                Assert.False(before.SequenceEqual(Selection.Candidates));
+                Assert.All(Selection.Candidates, card => Assert.True(card.Type is CardType.Attack or CardType.Skill));
+                Assert.True(enchanted[0].HasKeyword(CardKeyword.Innate));
+                Assert.True(enchanted[0].HasKeyword(CardKeyword.Retain));
+            }
+        }
+        else if (relicType == typeof(DingyRug))
+        {
+            await RelicCmd.Obtain(canonical, player);
+            var options = new CardCreationOptions([player.Character.CardPool], CardCreationSource.Encounter,
+                CardRarityOddsType.Uniform, card => card is Finesse);
+            var reward = new CardReward(player, options, 1);
+            reward.Populate(run);
+            Assert.IsType<Finesse>(Assert.Single(reward.Options));
+            await reward.SelectOption(reward.Options[0]);
+            Assert.IsType<Finesse>(player.Deck.Cards.Last());
+            var suppressed = new CardCreationOptions([player.Character.CardPool], CardCreationSource.Encounter,
+                CardRarityOddsType.Uniform, card => card is Finesse)
+                .WithFlags(CardCreationFlags.NoCardPoolModifications);
+            Assert.Throws<InvalidOperationException>(() => new CardReward(player, suppressed, 1).Populate(run));
+        }
+        else if (relicType == typeof(LastingCandy))
+        {
+            await RelicCmd.Obtain(canonical, player);
+            var candy = Assert.Single(player.Relics.OfType<LastingCandy>());
+            for (int combat = 0; combat < 3; combat++)
+            {
+                var room = NewCombat();
+                await room.Enter(run);
+                await CreatureCmd.Damage(room.Engine.State, room.Engine.State.Enemies.ToArray(), 9999m,
+                    ValueProp.Unpowered, player.Creature, null, null);
+                Assert.True(room.Engine.CheckWinCondition());
+                await room.ResolveOutcomeAsync();
+                var reward = Assert.Single(room.GeneratedRewards).Card;
+                Assert.Equal(combat == 1 ? 4 : 3, reward.Options.Count);
+                if (combat == 1) Assert.Equal(CardType.Power, reward.Options.Last().Type);
+                Assert.Equal(combat + 1, candy.CombatRewardsSeen);
+                await room.ResolveOutcomeAsync();
+                Assert.Equal(combat + 1, candy.CombatRewardsSeen);
+                await room.Exit(run);
+            }
+            CardModel power = player.Character.CardPool.AllCards.First(card => card.Type == CardType.Power);
+            var filtered = new CardCreationOptions([player.Character.CardPool], CardCreationSource.Encounter,
+                CardRarityOddsType.Uniform, card => card.Id == power.Id)
+                .WithFlags(CardCreationFlags.IsFromCombat);
+            var duplicateFallback = new CardReward(player, filtered, 1);
+            duplicateFallback.Populate(run);
+            Assert.Equal(2, duplicateFallback.Options.Count);
+            Assert.All(duplicateFallback.Options, card => Assert.Equal(power.Id, card.Id));
+            var skillsOnly = new CardCreationOptions([player.Character.CardPool], CardCreationSource.Encounter,
+                CardRarityOddsType.Uniform, card => card.Type == CardType.Skill)
+                .WithFlags(CardCreationFlags.IsFromCombat);
+            var noPower = new CardReward(player, skillsOnly, 1);
+            noPower.Populate(run);
+            Assert.Equal(CardType.Skill, Assert.Single(noPower.Options).Type);
+            Assert.Equal(3, candy.CombatRewardsSeen);
+            Assert.True(candy.IsAllowed(run));
+            foreach (int floor in Enumerable.Range(0, 41)) run.AddVisitedMapCoord(new MapCoord(floor, 0));
+            Assert.False(candy.IsAllowed(run));
+
+            // #962: Silent A10 sequential mode — ordinary combat card reward receives Lasting Candy's bonus Power (4 options),
+            // while extra card rewards from TheHunt, PrayerWheel, and WhiteStar stay at 3 options without IsFromCombat.
+            var silentRun = new RunState(
+                "task3b-lasting-candy-silent-a10",
+                [new Overgrowth(), new Hive()],
+                ascensionLevel: 10);
+            Player silent = Player.CreateForNewRun(ModelDb.Character<Silent>(), silentRun);
+            silentRun.AddPlayer(silent);
+            Assert.False(silent.PlayerRng.UsesSemanticKeys);
+            await RelicCmd.Obtain(canonical, silent);
+            var silentCandy = Assert.Single(silent.Relics.OfType<LastingCandy>());
+
+            CombatRoom firstRoom = NewCombat();
+            silentRun.PushRoom(firstRoom);
+            await firstRoom.Enter(silentRun);
+            await CreatureCmd.Damage(firstRoom.Engine.State, firstRoom.Engine.State.Enemies.ToArray(), 9999m,
+                ValueProp.Unpowered, silent.Creature, null, null);
+            Assert.True(firstRoom.Engine.CheckWinCondition());
+            await firstRoom.ResolveOutcomeAsync();
+            Assert.Equal(3, Assert.Single(firstRoom.GeneratedRewards).Card.Options.Count);
+            Assert.Equal(1, silentCandy.CombatRewardsSeen);
+            await firstRoom.Exit(silentRun);
+            silentRun.PopCurrentRoom();
+
+            RunState legacyFlagRun = silentRun.CloneExact();
+            RunState prayerRun = silentRun.CloneExact();
+            RunState starRun = silentRun.CloneExact();
+
+            CombatRoom huntRoom = NewCombat();
+            silentRun.PushRoom(huntRoom);
+            await huntRoom.Enter(silentRun);
+            Creature huntTarget = Assert.Single(huntRoom.Engine.State.HittableEnemies);
+            huntTarget.LoseHpInternal(huntTarget.CurrentHp - 10, ValueProp.Unpowered);
+            var huntCard = (TheHunt)ModelDb.Card<TheHunt>().MutableClone();
+            huntCard.AssignOwner(silent);
+            CardPileCmd.Add(huntCard, PileType.Hand);
+            silent.PlayerCombatState!.Energy = 3;
+            await huntRoom.Engine.PlayCardAsync(silent, huntCard, huntTarget);
+            Assert.True(huntRoom.Engine.CheckWinCondition());
+
+            Player legacyPlayer = Assert.Single(legacyFlagRun.Players);
+            CombatRoom legacyRoom = NewCombat();
+            legacyFlagRun.PushRoom(legacyRoom);
+            await legacyRoom.Enter(legacyFlagRun);
+            legacyRoom.QueueExtraReward(legacyPlayer, new CardReward(legacyPlayer, CardRarityOddsType.RegularEncounter, isFromCombat: true));
+            await CreatureCmd.Damage(legacyRoom.Engine.State, legacyRoom.Engine.State.Enemies.ToArray(), 9999m,
+                ValueProp.Unpowered, legacyPlayer.Creature, null, null);
+            Assert.True(legacyRoom.Engine.CheckWinCondition());
+
+            Assert.Equal(legacyPlayer.PlayerRng.Rewards.Counter, silent.PlayerRng.Rewards.Counter);
+            await huntRoom.ResolveOutcomeAsync();
+            await legacyRoom.ResolveOutcomeAsync();
+
+            RewardsSet huntRewards = Assert.Single(huntRoom.GeneratedRewards);
+            RewardsSet legacyRewards = Assert.Single(legacyRoom.GeneratedRewards);
+            Assert.Equal(4, huntRewards.Card.Options.Count);
+            Assert.Equal(CardType.Power, huntRewards.Card.Options.Last().Type);
+            Assert.Equal(
+                legacyRewards.Card.Options.Select(card => (card.Id, card.IsUpgraded)),
+                huntRewards.Card.Options.Select(card => (card.Id, card.IsUpgraded)));
+            CardReward huntExtra = Assert.IsType<CardReward>(Assert.Single(huntRewards.ExtraRewards));
+            CardReward legacyExtra = Assert.IsType<CardReward>(Assert.Single(legacyRewards.ExtraRewards));
+            Assert.Equal(3, huntExtra.Options.Count);
+            Assert.Equal(4, legacyExtra.Options.Count);
+            Assert.Equal(CardType.Power, legacyExtra.Options.Last().Type);
+            Assert.Equal(
+                legacyExtra.Options.Take(3).Select(card => (card.Id, card.IsUpgraded)),
+                huntExtra.Options.Select(card => (card.Id, card.IsUpgraded)));
+            Assert.Equal(3, legacyPlayer.PlayerRng.Rewards.Counter - silent.PlayerRng.Rewards.Counter);
+            Assert.Equal(2, silentCandy.CombatRewardsSeen);
+            RunState huntRewardClone = silentRun.CloneExact();
+            Assert.Equal(3, Assert.IsType<CardReward>(Assert.Single(Assert.IsType<CombatRoom>(huntRewardClone.CurrentRoom).GeneratedRewards[0].ExtraRewards)).Options.Count);
+            await huntRoom.Exit(silentRun);
+            silentRun.PopCurrentRoom();
+            await legacyRoom.Exit(legacyFlagRun);
+            legacyFlagRun.PopCurrentRoom();
+
+            Player prayerPlayer = Assert.Single(prayerRun.Players);
+            await RelicCmd.Obtain(ModelDb.Relic<PrayerWheel>(), prayerPlayer);
+            CombatRoom prayerRoom = NewCombat();
+            prayerRun.PushRoom(prayerRoom);
+            await prayerRoom.Enter(prayerRun);
+            await CreatureCmd.Damage(prayerRoom.Engine.State, prayerRoom.Engine.State.Enemies.ToArray(), 9999m,
+                ValueProp.Unpowered, prayerPlayer.Creature, null, null);
+            Assert.True(prayerRoom.Engine.CheckWinCondition());
+            await prayerRoom.ResolveOutcomeAsync();
+            RewardsSet prayerRewards = Assert.Single(prayerRoom.GeneratedRewards);
+            Assert.Equal(4, prayerRewards.Card.Options.Count);
+            Assert.Equal(CardType.Power, prayerRewards.Card.Options.Last().Type);
+            Assert.Equal(3, Assert.IsType<CardReward>(Assert.Single(prayerRewards.ExtraRewards)).Options.Count);
+            await prayerRoom.Exit(prayerRun);
+            prayerRun.PopCurrentRoom();
+
+            Player starPlayer = Assert.Single(starRun.Players);
+            await RelicCmd.Obtain(ModelDb.Relic<WhiteStar>(), starPlayer);
+            var starRoom = new CombatRoom(() => (WanderingGrunt)ModelDb.Monster<WanderingGrunt>().MutableClone(), RoomType.Elite);
+            starRun.PushRoom(starRoom);
+            await starRoom.Enter(starRun);
+            await CreatureCmd.Damage(starRoom.Engine.State, starRoom.Engine.State.Enemies.ToArray(), 9999m,
+                ValueProp.Unpowered, starPlayer.Creature, null, null);
+            Assert.True(starRoom.Engine.CheckWinCondition());
+            await starRoom.ResolveOutcomeAsync();
+            RewardsSet starRewards = Assert.Single(starRoom.GeneratedRewards);
+            Assert.Equal(4, starRewards.Card.Options.Count);
+            Assert.Equal(CardType.Power, starRewards.Card.Options.Last().Type);
+            CardReward starExtra = Assert.IsType<CardReward>(Assert.Single(starRewards.ExtraRewards));
+            Assert.Equal(3, starExtra.Options.Count);
+            Assert.All(starExtra.Options, card => Assert.Equal(CardRarity.Rare, card.Rarity));
+            await starRoom.Exit(starRun);
+            starRun.PopCurrentRoom();
+        }
+        else if (relicType == typeof(MiniatureTent))
+            await VerifyRestFlow(canonical);
+        else if (relicType == typeof(PetrifiedToad))
+        {
+            await RelicCmd.Obtain(canonical, player);
+            var observer = (SharedRelicPoolTask3bTests)ModelDb.Relic<SharedRelicPoolTask3bTests>().MutableClone();
+            observer.AssignOwner(player);
+            player.AddRelicInternal(observer);
+            foreach (bool full in new[] { false, true })
+            {
+                foreach (PotionModel potion in player.PotionSlots.OfType<PotionModel>().ToArray()) player.RemovePotionInternal(potion);
+                observer.FillSlotsEarly = full;
+                var room = NewCombat();
+                await room.Enter(run);
+                Assert.Equal(full ? 2 : 1, observer.EarlyCalls);
+                if (full) Assert.All(player.PotionSlots, potion => Assert.IsType<StrengthPotion>(potion));
+                else
+                {
+                    var rock = Assert.IsType<PotionShapedRock>(Assert.Single(player.PotionSlots.OfType<PotionModel>()));
+                    Assert.Same(player, rock.Owner);
+                    int hp = room.Engine.State.Enemies[0].CurrentHp;
+                    await PotionCmd.Use(rock, player, room.Engine.State.Enemies[0]);
+                    Assert.Equal(15, hp - room.Engine.State.Enemies[0].CurrentHp);
+                    Assert.DoesNotContain(rock, player.PotionSlots);
+                }
+                await room.Exit(run);
+            }
+        }
+        else if (relicType == typeof(WingCharm))
+        {
+            await RelicCmd.Obtain(canonical, player);
+            CardModel[] originals = [ModelDb.Card<StrikeRegent>(), ModelDb.Card<DefendRegent>(), ModelDb.Card<Dazed>()];
+            var reward = new CardReward(player, originals);
+            int nicheBefore = run.Rng.Niche.Counter;
+            int rewardsBefore = player.PlayerRng.Rewards.Counter;
+            reward.Populate(run);
+            Assert.Equal(3, reward.Options.Count);
+            CardModel changed = Assert.Single(reward.Options, card => card.Enchantments.Count > 0);
+            Assert.Equal(1m, Assert.IsType<Swift>(Assert.Single(changed.Enchantments)).Magnitude);
+            // v0.113.1 WingCharm picks the enchanted option with PlayerRng.Rewards (#946), not Niche.
+            Assert.Equal(1, player.PlayerRng.Rewards.Counter - rewardsBefore);
+            Assert.Equal(0, run.Rng.Niche.Counter - nicheBefore);
+            Assert.All(originals, card => Assert.Empty(card.Enchantments));
+            Assert.Equal(2, reward.Options.Count(card => originals.Any(original => ReferenceEquals(card, original))));
+            Assert.Same(originals[2], reward.Options[2]);
+            await reward.SelectOption(changed);
+            Assert.IsType<Swift>(Assert.Single(player.Deck.Cards.Last().Enchantments));
+        }
+        else if (relicType == typeof(SeaGlass))
+        {
+            Orobas? offered = null;
+            for (int seed = 0; seed < 64 && offered is null; seed++)
+            {
+                run = NewRun("task3b-sea-glass-" + seed);
+                player = run.Players[0];
+                var ancient = (Orobas)ModelDb.Event<Orobas>().MutableClone();
+                ancient.AssignOwner(player);
+                ancient.BeginEvent(run);
+                if (ancient.CurrentOptions[0].Key == nameof(SeaGlass)) offered = ancient;
+            }
+            Assert.NotNull(offered);
+            Assert.Equal(ModelDb.AllCharacters.Select(character => character.Id),
+                offered.AllPossibleOptions.OfType<SeaGlass>().Select(relic => relic.CharacterId));
+            run.ConfigureCardSelectionSource(this);
+            int deckBefore = player.Deck.Cards.Count;
+            await offered.ChooseOption(offered.CurrentOptions[0]);
+            CardSelectionRequest request = Assert.IsType<CardSelectionRequest>(Selection);
+            Assert.IsType<SeaGlass>(request.Source);
+            SeaGlass obtained = Assert.Single(player.Relics.OfType<SeaGlass>());
+            Assert.NotNull(obtained.CharacterId);
+            Assert.NotEqual(player.Character.Id, obtained.CharacterId);
+            CharacterModel selectedCharacter = ModelDb.GetById<CharacterModel>(obtained.CharacterId);
+            Assert.All(request.Candidates, card => Assert.Contains(selectedCharacter.CardPool.AllCards,
+                candidate => candidate.Id == card.Id));
+            Assert.Equal((0, 15, 15), (request.MinCount, request.MaxCount, request.Candidates.Count));
+            Assert.Equal([CardRarity.Common, CardRarity.Uncommon, CardRarity.Rare],
+                request.Candidates.Chunk(5).Select(group => Assert.Single(group.Select(card => card.Rarity).Distinct())));
+            Assert.Equal(deckBefore + 2, player.Deck.Cards.Count);
+            Assert.Equal(request.Candidates.Take(2), player.Deck.Cards.TakeLast(2));
+
+            run = NewRun("task3b-sea-glass-fallback");
+            player = run.Players[0];
+            run.ConfigureCardSelectionSource(this);
+            SeaGlassPickCount = 0;
+            deckBefore = player.Deck.Cards.Count;
+            await RelicCmd.Obtain(ModelDb.Relic<SeaGlass>(), player);
+            Assert.Equal(ModelDb.Character<Ironclad>().Id, Assert.Single(player.Relics.OfType<SeaGlass>()).CharacterId);
+            Assert.Equal(deckBefore, player.Deck.Cards.Count);
+        }
+    }
+
+    private async Task VerifyMerchant(RunState run, Player player, RelicModel canonical)
+    {
+        var shop = new MerchantRoom();
+        run.PushRoom(shop);
+        await shop.EnterInternal(run);
+        Purchase = new MerchantRelicEntry(canonical, 10, player);
+        ((List<MerchantRelicEntry>)shop.Inventory.Relics)[0] = Purchase;
+        player.Gold = 1000;
+        int deckBefore = player.Deck.Cards.Count;
+        await DrivePrivate(new RunDriver(run, this), "DriveShopAsync", shop);
+        Assert.True(Purchase.Purchased);
+        Assert.Equal(990, player.Gold);
+        Assert.Equal(5, RewardChoices);
+        Assert.Equal(5, Offer!.ExtraRewards.Count);
+        Assert.All(Offer.ExtraRewards, reward => Assert.True(reward.IsResolved));
+        if (canonical is Cauldron)
+        {
+            Assert.All(Offer.ExtraRewards, reward => Assert.IsType<PotionReward>(reward));
+            Assert.Equal(3, player.PotionSlots.Count(potion => potion is not null));
+        }
+        else
+        {
+            Assert.All(Offer.ExtraRewards, reward =>
+            {
+                var cardReward = Assert.IsType<CardReward>(reward);
+                Assert.Equal(3, cardReward.Options.Count);
+                Assert.All(cardReward.Options, card => Assert.Contains(player.Character.CardPool.AllCards, c => c.Id == card.Id));
+                Assert.NotNull(cardReward.SelectedOption);
+            });
+            Assert.Equal(deckBefore + 5, player.Deck.Cards.Count);
+        }
+        await shop.Exit(run);
+    }
+
+    private async Task VerifyRestFlow(RelicModel tentRelic)
+    {
+        foreach (bool tent in new[] { false, true })
+        {
+            RunState run = NewRun("task3b-rest-" + tent);
+            Player player = run.Players[0];
+            await RelicCmd.Obtain(ModelDb.Relic<Girya>(), player);
+            var girya = Assert.Single(player.Relics.OfType<Girya>());
+            if (tent) await RelicCmd.Obtain(tentRelic, player);
+            // #1011: a full-HP Wuppy adds a disabled RESTORE; with the tent it is the only option left at the end.
+            await RelicCmd.Obtain(ModelDb.Relic<Sts2Sim.Core.Models.Relics.Wuppy>(), player);
+            var room = new RestSiteRoom();
+            run.PushRoom(room);
+            await room.EnterInternal(run);
+            RestSiteDecision[] initial = room.GetAvailableDecisions(run, player).ToArray();
+            int initialSmithCount = initial.OfType<RestSiteDecision.Smith>().Count();
+            Assert.True(initialSmithCount > 1);
+            RestChoices.Clear();
+            await DrivePrivate(new RunDriver(run, this), "DriveRestSiteAsync", room);
+            Assert.Equal(1, girya.TimesLifted);
+            Assert.False(Assert.Single(initial.OfType<RestoreRestSiteOption>()).IsEnabled);
+            Assert.Equal(tent ? initial.Length - initialSmithCount : 1, RestChoices.Count);
+            Assert.All(RestChoices, choice => Assert.Contains(initial, item => ReferenceEquals(item, choice)));
+            Assert.Single(RestChoices.OfType<LiftRestSiteOption>());
+            Assert.Equal(tent ? 1 : 0, RestChoices.OfType<RestSiteDecision.Smith>().Count());
+            Assert.Equal(tent ? 1 : 0, player.Deck.Cards.Count(card => card.IsUpgraded));
+            Assert.False(room.HasRemainingDecisions(player));
+            IReadOnlyList<RestSiteDecision> leftover = room.GetAvailableDecisions(run, player);
+            if (tent) Assert.False(Assert.IsType<RestoreRestSiteOption>(Assert.Single(leftover)).IsEnabled);
+            else Assert.Empty(leftover);
+            await room.Exit(run);
+            Assert.Contains(room.GetAvailableDecisions(run, player), choice => choice is LiftRestSiteOption);
+        }
+
+        RunState cookRun = NewRun("task3b-tent-cook-prunes-smith");
+        Player cookPlayer = cookRun.Players[0];
+        cookRun.ConfigureCardSelectionSource(this);
+        await RelicCmd.Obtain(tentRelic, cookPlayer);
+        await RelicCmd.Obtain(ModelDb.Relic<MeatCleaver>(), cookPlayer);
+        var cookRoom = new RestSiteRoom();
+        await cookRoom.EnterInternal(cookRun);
+        RestSiteDecision[] cookInitial = cookRoom.GetAvailableDecisions(cookRun, cookPlayer).ToArray();
+        RestSiteDecision.Cook cook = Assert.Single(cookInitial.OfType<RestSiteDecision.Cook>());
+        CardModel[] cookedCards = cookPlayer.Deck.Cards.Where(card => card.IsRemovable).Take(2).ToArray();
+
+        await cookRoom.ResolveAsync(cookPlayer, cook);
+
+        Assert.All(cookedCards, card => Assert.DoesNotContain(
+            cookPlayer.Deck.Cards,
+            current => ReferenceEquals(card, current)));
+        RestSiteDecision.Smith[] smithsAfterCook = cookRoom.GetAvailableDecisions(cookRun, cookPlayer)
+            .OfType<RestSiteDecision.Smith>()
+            .ToArray();
+        Assert.All(smithsAfterCook, smith =>
+        {
+            Assert.Contains(cookPlayer.Deck.Cards, card => ReferenceEquals(card, smith.Card));
+            Assert.True(smith.Card.IsUpgradable);
+        });
+        Assert.DoesNotContain(
+            smithsAfterCook,
+            smith => cookedCards.Any(card => ReferenceEquals(card, smith.Card)));
+
+        RunState failedRun = NewRun("task3b-tent-failed-smith");
+        Player failedPlayer = failedRun.Players[0];
+        await RelicCmd.Obtain(tentRelic, failedPlayer);
+        var failedRoom = new RestSiteRoom();
+        await failedRoom.EnterInternal(failedRun);
+        RestSiteDecision.Smith disabledSmith = failedRoom.GetAvailableDecisions(failedRun, failedPlayer)
+            .OfType<RestSiteDecision.Smith>()
+            .First();
+        while (disabledSmith.Card.IsUpgradable) disabledSmith.Card.Upgrade();
+        RestSiteDecision[] beforeFailedSelection =
+            failedRoom.GetAvailableDecisions(failedRun, failedPlayer).ToArray();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => failedRoom.ResolveAsync(failedPlayer, disabledSmith));
+
+        Assert.Equal(
+            beforeFailedSelection,
+            failedRoom.GetAvailableDecisions(failedRun, failedPlayer));
+
+        RunState engineRun = NewRun("task3b-tent-engine");
+        Player enginePlayer = engineRun.Players[0];
+        await RelicCmd.Obtain(tentRelic, enginePlayer);
+        await RelicCmd.Obtain(ModelDb.Relic<Girya>(), enginePlayer);
+        var engineGirya = Assert.Single(enginePlayer.Relics.OfType<Girya>());
+        engineRun.Map.StartingMapPoint.PointType = MapPointType.Monster;
+        engineRun.Map.StartingMapPoint.Children.OrderBy(point => point.coord.col).First().PointType = MapPointType.RestSite;
+        await new RunEngine(engineRun, points => points.OrderBy(point => point.coord.col).First()).RunAsync(maxFloors: 1);
+        Assert.Equal(1, engineGirya.TimesLifted);
+        Assert.Single(enginePlayer.Deck.Cards, card => card.IsUpgraded);
+    }
+
+    public override Task BeforeCombatStart()
+    {
+        EarlyCalls++;
+        Assert.DoesNotContain(Owner.PotionSlots, potion => potion is PotionShapedRock);
+        if (FillSlotsEarly)
+            while (Owner.PotionSlots.Contains(null)) Owner.AddPotionInternal((PotionModel)ModelDb.Potion<StrengthPotion>().MutableClone());
+        return Task.CompletedTask;
+    }
+    public Task<MapPoint> ChooseMapPointAsync(IReadOnlyList<MapPoint> options) => Task.FromResult(options[0]);
+    public Task<CombatDecision> ChooseCombatActionAsync(CombatState state) => throw new NotSupportedException();
+    public Task<IReadOnlyList<CardModel>> ChooseCardsAsync(CardSelectionRequest request)
+    {
+        Selection = request;
+        return Task.FromResult<IReadOnlyList<CardModel>>(request.Candidates.Take(request.Source is SeaGlass ? SeaGlassPickCount : request.MaxCount).ToArray());
+    }
+    public Task<RestSiteDecision> ChooseRestSiteActionAsync(Player player, IReadOnlyList<RestSiteDecision> candidates)
+    {
+        RestSiteDecision choice = candidates.OfType<LiftRestSiteOption>().FirstOrDefault() ?? candidates.First(c => c.IsEnabled);
+        Assert.DoesNotContain(RestChoices, previous => ReferenceEquals(previous, choice));
+        RestChoices.Add(choice);
+        return Task.FromResult(choice);
+    }
+    public Task<ShopDecision> ChooseShopActionAsync(MerchantInventory inventory, Player player)
+    {
+        if (Purchase is { Purchased: false }) return Task.FromResult<ShopDecision>(new ShopDecision.BuyRelic(Purchase));
+        Assert.All(Offer!.ExtraRewards, reward => Assert.True(reward.IsResolved));
+        return Task.FromResult<ShopDecision>(new ShopDecision.Leave());
+    }
+    public async Task<RewardDecision> ChooseRewardActionAsync(RewardsSet rewards)
+    {
+        Offer = rewards;
+        var shop = Assert.IsType<MerchantRoom>(rewards.Player.RunState.CurrentRoom);
+        RewardDecision next = RewardDecisionClassifier.ChooseDefault(rewards);
+        if (next is RewardDecision.Done) return next;
+        Assert.True(shop.HasPendingRewards);
+        if (RewardChoices == 0)
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(() => shop.Exit((RunState)rewards.Player.RunState));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => shop.Buy(shop.Inventory.Cards[0], rewards.Player));
+        }
+        if (RewardDecisionClassifier.Classify(rewards) is RewardDecisionClassification.Choice choice)
+        {
+            RewardChoices++;
+            if (choice.Candidates[0] is RewardDecision.ResolveExtra { Reward: PotionReward { CanTake: false } full })
+            {
+                await full.Take();
+                Assert.False(full.IsResolved);
+            }
+        }
+        return next;
+    }
+    private static RunState NewRun(string seed)
+    {
+        var run = new RunState(seed, new Overgrowth());
+        run.AddPlayer(Player.CreateForNewRun(ModelDb.Character<Regent>(), run));
+        return run;
+    }
+    private static CombatRoom NewCombat() => new(() => (WanderingGrunt)ModelDb.Monster<WanderingGrunt>().MutableClone());
+    private static Task DrivePrivate(RunDriver driver, string method, AbstractRoom room) =>
+        (Task)typeof(RunDriver).GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(driver, [room])!;
+}

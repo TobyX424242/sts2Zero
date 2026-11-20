@@ -59,7 +59,7 @@ def battle_starts(r):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--runs", default=os.path.join(ROOT, "data/spire_codex/poc_100k/runs.jsonl.gz"))
+    ap.add_argument("--runs", default=os.path.join(ROOT, "src/data/spire_codex/poc_100k/runs.jsonl.gz"))
     ap.add_argument("--out", default=os.path.join(HERE, "data/battle_starts_v0.111.0_defect.jsonl"))
     ap.add_argument("--build", default="v0.111.0")
     ap.add_argument("--character", default="DEFECT")

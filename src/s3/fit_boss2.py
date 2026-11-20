@@ -5,7 +5,7 @@ the start of the second boss fight. The actor uses it for the first act-3 boss a
 src/s3/S3/RunAgent.cs): T_f(h, P) = d + (1 - d) W2(h, P), d = the death value of death_value=progress.
 
 Reads one or more segment log directories (each with runs/*.jsonl and fights/*.jsonl, e.g.
-the stored run metadata of segments 13-16; runs with errors or perturbed fight starts and practice fights are skipped.
+src/server_backup/s3/s3a_s016/meta); runs with errors or perturbed fight starts and practice fights are skipped.
 The second boss of a run is its last boss fight of act 3 when the run had two act-3 boss fights (the first one won).
 
 usage: python -I src/s3/fit_boss2.py [--out FILE.json] [--test DIR] [--hp2] DIR [DIR ...]

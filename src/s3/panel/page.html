@@ -1,0 +1,1274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>S3 watch panel</title>
+<style>
+:root {
+  color-scheme: light;
+  --plane: #f4f4f1; --surface: #fcfcfb; --ink: #0b0b0b; --ink2: #52514e; --muted: #898781; --grid: #e1e0d9; --axis: #c3c2b7;
+  --border: rgba(11,11,11,0.10); --wash: rgba(11,11,11,0.04);
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --gray: #a09e97;
+  --o1: #86b6ef; --o2: #3987e5; --o3: #1c5cab; --o4: #0d366b; --seq: #2a78d6;
+  --good: #0ca30c; --warn: #fab219; --serious: #ec835a; --crit: #d03b3b;
+  --goodbg: #e7f5e7; --warnbg: #fdf1d3; --critbg: #f9e1e1; --infobg: #e4eefb;
+  --mono: ui-monospace, "DejaVu Sans Mono", "Liberation Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", "Ubuntu", "Noto Sans", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --plane: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink2: #c3c2b7; --muted: #898781; --grid: #2c2c2a; --axis: #383835;
+    --border: rgba(255,255,255,0.10); --wash: rgba(255,255,255,0.05);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --gray: #77756f;
+    --o1: #184f95; --o2: #2a78d6; --o3: #6da7ec; --o4: #b7d3f6; --seq: #3987e5;
+    --goodbg: #10290f; --warnbg: #33270a; --critbg: #371414; --infobg: #10233d;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --plane: #0d0d0d; --surface: #1a1a19; --ink: #f0efec; --ink2: #c3c2b7; --muted: #898781; --grid: #2c2c2a; --axis: #383835;
+  --border: rgba(255,255,255,0.10); --wash: rgba(255,255,255,0.05);
+  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --gray: #77756f;
+  --o1: #184f95; --o2: #2a78d6; --o3: #6da7ec; --o4: #b7d3f6; --seq: #3987e5;
+  --goodbg: #10290f; --warnbg: #33270a; --critbg: #371414; --infobg: #10233d;
+}
+* { box-sizing: border-box; }
+html { scroll-padding-top: 130px; }
+body { margin: 0; background: var(--plane); color: var(--ink); font: 14px/1.45 var(--sans); }
+button, select { font: inherit; color: inherit; }
+button { background: var(--surface); border: 1px solid var(--axis); border-radius: 6px; padding: 5px 11px; cursor: pointer; }
+button:hover:not(:disabled) { background: var(--wash); }
+button:disabled { opacity: .5; cursor: default; }
+button.primary { background: var(--s1); border-color: var(--s1); color: #fff; font-weight: 600; }
+button.primary:hover:not(:disabled) { filter: brightness(1.08); background: var(--s1); }
+select { background: var(--surface); border: 1px solid var(--axis); border-radius: 6px; padding: 4px 6px; }
+:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
+a { color: inherit; }
+.num { font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--mono); font-size: 12px; }
+
+/* top bar */
+.top { position: sticky; top: 0; z-index: 20; background: var(--surface); border-bottom: 1px solid var(--border); }
+.top .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; padding: 8px 20px; }
+.top h1 { font-size: 16px; margin: 0; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; }
+.top h1 span { font-weight: 400; color: var(--ink2); }
+.asof { display: flex; flex-wrap: wrap; gap: 2px 14px; align-items: baseline; font-size: 13px; color: var(--ink2); }
+.asof b { color: var(--ink); font-weight: 600; }
+.pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 2px 10px; font-size: 12.5px; font-weight: 600; border: 1px solid var(--border); white-space: nowrap; }
+.pill.good { background: var(--goodbg); } .pill.warn { background: var(--warnbg); } .pill.crit { background: var(--critbg); } .pill.info { background: var(--infobg); }
+.dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex: none; }
+.dot.good { background: var(--good); } .dot.warn { background: var(--warn); } .dot.crit { background: var(--crit); } .dot.info { background: var(--s1); }
+.syncbox { margin-left: auto; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.syncbox label { font-size: 12.5px; color: var(--ink2); }
+.syncline { padding: 0 20px 7px; font-size: 12.5px; color: var(--ink2); display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; }
+.syncline .err { color: var(--ink); background: var(--critbg); border-radius: 4px; padding: 1px 8px; }
+.bar { width: 160px; height: 6px; border-radius: 3px; background: var(--grid); overflow: hidden; display: inline-block; vertical-align: middle; }
+.bar i { display: block; height: 100%; background: var(--s1); width: 0; }
+.bar.ind i { width: 35%; animation: slide 1.4s linear infinite; }
+@keyframes slide { from { margin-left: -35%; } to { margin-left: 100%; } }
+@media (prefers-reduced-motion: reduce) { .bar.ind i { animation: none; width: 100%; opacity: .5; } }
+nav.jump { display: flex; gap: 2px 14px; flex-wrap: wrap; margin-left: auto; font-size: 12.5px; }
+nav.jump a { color: var(--ink2); text-decoration: none; border-bottom: 1px solid transparent; }
+nav.jump a:hover { color: var(--ink); border-bottom-color: var(--axis); }
+
+main { max-width: 1500px; margin: 0 auto; padding: 14px 20px 60px; }
+section { margin-top: 26px; }
+section > h2 { font-size: 17px; margin: 0 0 2px; letter-spacing: -.01em; }
+section > p.lead { margin: 0 0 10px; color: var(--ink2); max-width: 110ch; font-size: 13px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(430px, 1fr)); gap: 12px; }
+.grid.three { grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); }
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 11px 13px 9px; min-width: 0; }
+.card h3 { font-size: 13.5px; margin: 0; font-weight: 650; }
+.card .sub { color: var(--ink2); font-size: 12px; margin: 1px 0 4px; }
+.card.wide { grid-column: 1 / -1; }
+.legend { display: flex; flex-wrap: wrap; gap: 2px 14px; font-size: 12px; color: var(--ink2); margin: 2px 0 0; min-height: 18px; }
+.legend span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.key { width: 14px; height: 0; border-top: 2.5px solid; border-radius: 2px; display: inline-block; }
+.sw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+svg.chart { display: block; width: 100%; overflow: visible; }
+svg.chart text { font: 11px var(--sans); fill: var(--muted); font-variant-numeric: tabular-nums; }
+svg.chart text.lab { fill: var(--ink2); }
+.empty { color: var(--ink2); background: var(--wash); border-radius: 6px; padding: 12px 14px; font-size: 13px; margin: 6px 0; }
+.empty b { color: var(--ink); }
+details.tv { margin-top: 3px; font-size: 12px; }
+details.tv summary { cursor: pointer; color: var(--muted); width: max-content; }
+details.tv summary:hover { color: var(--ink2); }
+.scroll { overflow: auto; max-height: 340px; }
+.scroll.free { max-height: none; }
+table { border-collapse: collapse; font-size: 12.5px; width: 100%; }
+th, td { padding: 4px 9px; text-align: left; border-bottom: 1px solid var(--grid); vertical-align: top; }
+th { color: var(--ink2); font-weight: 600; font-size: 12px; position: sticky; top: 0; background: var(--surface); vertical-align: bottom; }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.wrap { white-space: normal; word-break: break-word; }
+td.nw { white-space: nowrap; }
+tr.dim td { color: var(--muted); }
+th.grp { text-align: center; border-bottom: 1px solid var(--axis); }
+td.heat { text-align: right; font-variant-numeric: tabular-nums; }
+.tag { display: inline-flex; gap: 5px; align-items: center; white-space: nowrap; }
+.mini { display: inline-block; width: 54px; height: 6px; background: var(--grid); border-radius: 3px; vertical-align: middle; margin-left: 6px; overflow: hidden; }
+.mini i { display: block; height: 100%; background: var(--s1); }
+
+.banner { border-radius: 8px; padding: 10px 14px; margin: 0 0 12px; border: 1px solid var(--border); display: flex; gap: 10px; align-items: flex-start; font-size: 14px; }
+.banner .ic { font-size: 16px; line-height: 1.3; flex: none; }
+.banner.warn { background: var(--warnbg); } .banner.crit { background: var(--critbg); } .banner.good { background: var(--goodbg); } .banner.info { background: var(--infobg); }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.tile { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 13px; min-width: 0; }
+.tile .l { font-size: 12px; color: var(--ink2); }
+.tile .v { font-size: 24px; font-weight: 650; letter-spacing: -.02em; line-height: 1.2; margin: 1px 0; overflow-wrap: anywhere; }
+.tile .v small { font-size: 13px; font-weight: 400; color: var(--ink2); letter-spacing: 0; }
+.tile .d { font-size: 12.5px; color: var(--ink2); overflow-wrap: anywhere; }
+.meter { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--s1) 22%, transparent); overflow: hidden; margin: 5px 0 3px; }
+.meter i { display: block; height: 100%; background: var(--s1); border-radius: 3px; }
+.meter.mk { position: relative; overflow: visible; height: 8px; }
+.meter.mk i { position: absolute; left: 0; top: 0; }
+.meter.mk b { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink); border-radius: 1px; }
+.meter.mk span { position: absolute; top: 9px; font-size: 10.5px; color: var(--ink2); transform: translateX(-50%); white-space: nowrap; }
+.tile .d.gap { margin-top: 14px; }
+.chip { display: inline-block; border: 1px solid var(--border); border-radius: 4px; padding: 0 6px; margin: 1px 3px 1px 0; font-size: 12px; background: var(--wash); white-space: nowrap; }
+.filters { position: sticky; top: var(--toph, 96px); z-index: 10; display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: center; background: var(--plane); padding: 8px 0; margin-top: 22px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.filters label { color: var(--ink2); display: inline-flex; gap: 6px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--axis); border-radius: 6px; overflow: hidden; }
+.seg button { border: 0; border-radius: 0; padding: 4px 10px; background: var(--surface); }
+.seg button + button { border-left: 1px solid var(--axis); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); font-weight: 600; }
+#tip { position: fixed; z-index: 50; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--axis); border-radius: 7px; padding: 7px 10px; font-size: 12.5px;
+  box-shadow: 0 6px 22px rgba(0,0,0,.18); max-width: 380px; display: none; }
+#tip .hd { color: var(--ink2); font-size: 12px; margin-bottom: 3px; }
+#tip .r { display: flex; gap: 8px; align-items: center; white-space: nowrap; }
+#tip .r b { font-variant-numeric: tabular-nums; min-width: 46px; text-align: right; }
+#tip .r span.nm { color: var(--ink2); }
+pre.raw { font: 11.5px/1.45 var(--mono); white-space: pre-wrap; word-break: break-word; margin: 6px 0 0; max-height: 380px; overflow: auto; background: var(--wash); border-radius: 6px; padding: 10px; }
+.ribbon text { font: 11px var(--sans); fill: var(--muted); }
+.ribbon text.in { fill: #fff; font-weight: 600; }
+.ribbon text.ind { fill: #0b0b0b; font-weight: 600; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(430px, 1fr)); gap: 12px; }
+.note { font-size: 12px; color: var(--ink2); margin-top: 6px; }
+footer { color: var(--muted); font-size: 12px; margin-top: 30px; }
+</style>
+</head>
+<body>
+<header class="top" id="top">
+  <div class="row">
+    <h1>S3 watch panel <span id="runname"></span></h1>
+    <div class="asof" id="asof">loading…</div>
+    <div class="syncbox">
+      <button class="primary" id="b-light" title="For the chain shown: status, curve, logs, evaluations, trainer / actor / server logs, run records (about 35 MiB per finished v3 segment), plus curve.txt and supervisor.log of the chains it continues. Only new or changed files are fetched. Never downloaded: weights (*.pt), training chunks (data/), the carry backup (carry/).">Sync light</button>
+      <button id="b-full" title="Light + the fight records (about 800 MiB per finished v3 segment), needed for the per-boss table. Only new or changed files are fetched.">Sync full</button>
+      <button id="b-prev" title="List Nextcloud and compare with the local files (takes about 30 s)">What would a sync download?</button>
+      <label>Chain
+        <select id="runsel" title="Which training chain to show (and sync). auto = the chain whose status.txt was written last"></select>
+      </label>
+      <label>Auto-sync
+        <select id="auto"><option value="0">off</option><option value="5">every 5 min (light)</option><option value="10">every 10 min (light)</option><option value="30">every 30 min (light)</option></select>
+      </label>
+      <label>Theme
+        <select id="theme"><option value="">system</option><option value="light">light</option><option value="dark">dark</option></select>
+      </label>
+    </div>
+  </div>
+  <div class="syncline"><span id="syncline" style="display:contents"></span>
+    <nav class="jump"><a href="#run">Run</a><a href="#eval">A10 evaluation</a><a href="#curric" id="nav-curric">Curriculum</a><a href="#asc" id="nav-asc">By ascension</a><a href="#potions" id="nav-potions">Potions</a><a href="#selfplay">Self-play curves</a><a href="#deaths">Deaths and fights</a><a href="#trainer">Trainer health</a><a href="#throughput">Throughput</a><a href="#problems">Problems</a></nav>
+  </div>
+</header>
+<main>
+  <section id="run"></section>
+  <div class="filters" id="filters"></div>
+  <section id="eval"></section>
+  <section id="curric"></section>
+  <section id="asc"></section>
+  <section id="potions"></section>
+  <section id="selfplay"></section>
+  <section id="deaths"></section>
+  <section id="trainer"></section>
+  <section id="throughput"></section>
+  <section id="problems"></section>
+  <footer id="foot"></footer>
+</main>
+<div id="tip" role="status"></div>
+<script>
+"use strict";
+/* ---------- state ---------- */
+const S = { data: null, sync: null, parse: null, runinfo: null, builtAt: null, x: "runs", segs: "counted", smooth: 5, lower: "grouped", heatGroup: "t", bossSeg: "latest", bossKind: "boss", ascMetric: "won", vAct: "1", open: {} };
+try { Object.assign(S, JSON.parse(localStorage.getItem("s3panel") || "{}")); } catch (e) {}
+{ const q = new URLSearchParams(location.search);          // e.g. ?x=time&segs=all (links and tests); the buttons below do the same
+  if (["runs", "time"].includes(q.get("x"))) S.x = q.get("x"); if (["counted", "all"].includes(q.get("segs"))) S.segs = q.get("segs"); }
+function savePrefs() { try { localStorage.setItem("s3panel", JSON.stringify({ x: S.x, segs: S.segs, smooth: S.smooth, lower: S.lower, heatGroup: S.heatGroup, bossKind: S.bossKind, ascMetric: S.ascMetric, vAct: S.vAct })); } catch (e) {} }
+function navShow(id, on) { const a = $("nav-" + id); if (a) a.style.display = on ? "" : "none"; }
+const $ = id => document.getElementById(id);
+const NS = "http://www.w3.org/2000/svg";
+
+/* ---------- DOM helpers (text only: log content is never inserted as HTML) ---------- */
+function h(tag, attrs, ...kids) {
+  const e = document.createElement(tag);
+  if (attrs) for (const k in attrs) {
+    const v = attrs[k];
+    if (v == null || v === false) continue;
+    if (k === "class") e.className = v; else if (k === "style") e.style.cssText = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v); else e.setAttribute(k, v === true ? "" : v);
+  }
+  for (const c of kids.flat(3)) if (c != null && c !== false) e.append(c.nodeType ? c : document.createTextNode(String(c)));
+  return e;
+}
+function sv(tag, attrs, text) {
+  const e = document.createElementNS(NS, tag);
+  if (attrs) for (const k in attrs) if (attrs[k] != null) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  return e;
+}
+/* ---------- formatting ---------- */
+const fi = v => v == null || isNaN(v) ? "–" : Math.round(v).toLocaleString("en-US");
+const fx = (v, d = 1) => v == null || isNaN(v) ? "–" : Number(v).toFixed(d);
+const fp = (v, d = 1) => v == null || isNaN(v) ? "–" : Number(v).toFixed(d) + "%";
+const fk = v => v == null ? "–" : Math.abs(v) >= 1e6 ? (v / 1e6).toFixed(Math.abs(v) >= 1e7 ? 0 : 1) + "M" : Math.abs(v) >= 1e4 ? Math.round(v / 1e3) + "k" : Math.abs(v) >= 1e3 ? (v / 1e3).toFixed(1) + "k" : String(Math.round(v));
+const fmib = b => b == null ? "–" : b >= 1048576 * 1024 ? (b / 1073741824).toFixed(2) + " GiB" : (b / 1048576).toFixed(b < 10485760 ? 1 : 0) + " MiB";
+const p2 = n => String(n).padStart(2, "0");
+function tUTC(ts, sec) { if (!ts) return "–"; const d = new Date(ts * 1000); return p2(d.getUTCHours()) + ":" + p2(d.getUTCMinutes()) + (sec ? ":" + p2(d.getUTCSeconds()) : "") + " UTC"; }
+function tLoc(ts, sec) { if (!ts) return "–"; const d = new Date(ts * 1000); return p2(d.getHours()) + ":" + p2(d.getMinutes()) + (sec ? ":" + p2(d.getSeconds()) : "") + " local"; }
+function dUTC(ts) { if (!ts) return "–"; const d = new Date(ts * 1000); return d.getUTCFullYear() + "-" + p2(d.getUTCMonth() + 1) + "-" + p2(d.getUTCDate()); }
+function both(ts, sec) { return ts ? dUTC(ts) + " " + tUTC(ts, sec) + " · " + tLoc(ts, sec) : "–"; }
+function dur(s) { if (s == null || isNaN(s)) return "–"; s = Math.max(0, Math.round(s)); const hh = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return hh ? hh + " h " + p2(m) + " min" : m ? m + " min" : s + " s"; }
+function ago(s) { if (s == null || isNaN(s)) return "–"; s = Math.round(s); if (s < 0) s = 0; return s < 90 ? s + " s ago" : s < 5400 ? Math.round(s / 60) + " min ago" : (s / 3600).toFixed(1) + " h ago"; }
+const now = () => Date.now() / 1000;
+
+/* ---------- tooltip ---------- */
+const tip = $("tip");
+function showTip(ev, head, rows) {
+  tip.replaceChildren();
+  if (head) tip.append(h("div", { class: "hd" }, head));
+  for (const r of rows) tip.append(h("div", { class: "r" }, r.color ? h("span", { class: "key", style: "border-color:" + r.color }) : null, h("b", null, r.value), h("span", { class: "nm" }, r.name)));
+  tip.style.display = "block";
+  const w = tip.offsetWidth, hh = tip.offsetHeight;
+  let x = ev.clientX + 14, y = ev.clientY + 14;
+  if (x + w > innerWidth - 8) x = ev.clientX - w - 14;
+  if (y + hh > innerHeight - 8) y = ev.clientY - hh - 14;
+  tip.style.left = Math.max(4, x) + "px"; tip.style.top = Math.max(4, y) + "px";
+}
+function hideTip() { tip.style.display = "none"; }
+
+/* ---------- chart helpers ---------- */
+const Q = [];                       // charts are drawn after their section's cards exist, so that widths are final
+function flush() { for (const f of Q.splice(0)) f(); }
+function sec(f) { try { f(); flush(); } catch (e) { Q.length = 0; console.error(e); document.querySelector("main").prepend(h("div", { class: "banner crit" }, "Page error in " + f.name + ": " + e.message)); } }
+function niceTicks(lo, hi, n) {
+  if (!(hi > lo)) { hi = lo + 1; }
+  const raw = (hi - lo) / Math.max(1, n), mag = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / mag;
+  const step = (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * mag;
+  const out = []; for (let v = Math.ceil(lo / step - 1e-9) * step; v <= hi + step * 1e-6; v += step) out.push(Math.abs(v) < step * 1e-9 ? 0 : v);
+  return { ticks: out, step };
+}
+function tickFmt(step) { let d = 0; while (d < 5 && Math.abs(step * Math.pow(10, d) - Math.round(step * Math.pow(10, d))) > 1e-6) d++; return v => Math.abs(v) >= 10000 ? fk(v) : v.toFixed(d); }
+function segList() { const d = S.data; return (d.segments || []).filter(s => S.segs === "all" || s.counted); }
+const countedFrom = () => (S.data && S.data.counted_from) || 0;      // s3a: 4 (segments 0-3 were restarts); other chains: 0
+function segShown(k) { return S.segs === "all" || k >= countedFrom(); }
+function xOf(p) { return S.x === "runs" ? p.runs : (p.ts != null && S.data.run_start ? (p.ts - S.data.run_start) / 3600 : null); }
+function xDomain() {
+  const d = S.data, segs = segList().filter(s => s.start != null);
+  const st = d.status || {};
+  if (S.x === "runs") {
+    let lo = segs.length ? segs[0].runs_at_start || 0 : 0, hi = Math.max(st.runs_so_far || 0, ...d.macro.map(r => r.runs || 0), ...d.eval.map(e => e.runs || 0), lo + 1000);
+    return [lo, hi];
+  }
+  const t0 = d.run_start || 0;
+  let lo = segs.length ? (segs[0].start - t0) / 3600 : 0;
+  let last = Math.max(st.updated || 0, ...d.segments.map(s => s.end || s.start || 0));
+  return [lo, Math.max(lo + 0.5, (last - t0) / 3600)];
+}
+function segMarks() {
+  return segList().filter(s => s.start != null && s.result !== "discarded").map(s => ({ x: S.x === "runs" ? s.runs_at_start : (s.start - S.data.run_start) / 3600, label: "s" + s.seg }));
+}
+const xLabel = () => S.x === "runs" ? "total self-play runs" : "hours since the run started (" + tUTC(S.data.run_start) + ")";
+function pointHead(p) {
+  const a = [];
+  if (p.seg != null) a.push("segment " + p.seg);
+  if (p.runs != null) a.push(fi(p.runs) + " runs");
+  if (p.ts != null) a.push(tUTC(p.ts) + " · " + tLoc(p.ts));
+  if (p.live) a.push("live, from status.txt");
+  return a.join(" · ");
+}
+function card(host, title, sub, wide) {
+  const c = h("div", { class: "card" + (wide ? " wide" : "") }, h("h3", null, title), sub ? h("div", { class: "sub" }, sub) : null);
+  host.append(c); return c;
+}
+function legendRow(series, rect) {
+  if (series.length < 2) return null;
+  return h("div", { class: "legend" }, series.map(s => h("span", null, h("span", { class: rect ? "sw" : "key", style: (rect ? "background:" : "border-color:") + s.color }), s.name)));
+}
+function tableView(c, id, make) {
+  const d = h("details", { class: "tv" }, h("summary", null, "Table"));
+  d.open = !!S.open[id];
+  const fill = () => { if (d.open && !d.dataset.done) { d.append(h("div", { class: "scroll" }, make())); d.dataset.done = 1; } };
+  d.addEventListener("toggle", () => { S.open[id] = d.open; fill(); }); fill();
+  c.append(d);
+}
+/* line chart. cfg: {id,title,sub,yLabel,fmt,series:[{name,color,pts:[{x,y,lo,hi,seg,runs,ts,live,extra}],err,dots,width}],
+   yMin,yMax,refs:[{y,label}],xKind:"run"|"cat",cats:[labels],xLabel,height,wide,note,minSpan} */
+function lineChart(host, cfg) {
+  const c = card(host, cfg.title, cfg.sub, cfg.wide);
+  const series = cfg.series.map(s => ({ ...s, pts: s.pts.filter(p => p.x != null && p.y != null && isFinite(p.x) && isFinite(p.y)) }));
+  const all = series.flatMap(s => s.pts);
+  if (!all.length) { c.append(h("div", { class: "empty" }, cfg.empty || "No data on the laptop for this chart yet.")); return c; }
+  const lg = legendRow(series); if (lg) c.append(lg);
+  Q.push(() => {
+  const W = Math.max(300, c.clientWidth - 28), H = cfg.height || 232, m = { l: 46, r: 16, t: 30, b: 40 };
+  const cat = cfg.xKind === "cat";
+  let [x0, x1] = cat ? [Math.min(...all.map(p => p.x)) - 0.5, Math.max(...all.map(p => p.x)) + 0.5] : cfg.xDom || xDomain();
+  if (!cat) { x0 = Math.min(x0, ...all.map(p => p.x)); x1 = Math.max(x1, ...all.map(p => p.x)); }
+  let lo = Math.min(...all.map(p => p.lo != null ? p.lo : p.y)), hi = Math.max(...all.map(p => p.hi != null ? p.hi : p.y));
+  for (const r of cfg.refs || []) { lo = Math.min(lo, r.y); hi = Math.max(hi, r.y); }
+  if (cfg.yMin != null) lo = Math.min(cfg.yMin, lo); if (cfg.yMax != null) hi = Math.max(hi, cfg.yMaxHard ? hi : cfg.yMax);
+  if (cfg.minSpan && hi - lo < cfg.minSpan) hi = lo + cfg.minSpan;
+  if (hi === lo) { hi = lo + (Math.abs(lo) || 1) * 0.1; }
+  const pad = (hi - lo) * 0.06; if (cfg.yMin == null || lo < cfg.yMin) lo -= pad; hi += pad;
+  const yt = niceTicks(lo, hi, 5); lo = Math.min(lo, yt.ticks[0]); hi = Math.max(hi, yt.ticks[yt.ticks.length - 1]);
+  const X = v => m.l + (v - x0) / (x1 - x0 || 1) * (W - m.l - m.r), Y = v => H - m.b - (v - lo) / (hi - lo) * (H - m.t - m.b);
+  const fmt = cfg.fmt || tickFmt(yt.step);
+  const svg = sv("svg", { class: "chart", viewBox: `0 0 ${W} ${H}`, height: H, role: "img", "aria-label": cfg.title });
+  for (const v of yt.ticks) {
+    svg.append(sv("line", { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v), stroke: "var(--grid)", "stroke-width": 1 }));
+    svg.append(sv("text", { x: m.l - 6, y: Y(v) + 3.5, "text-anchor": "end" }, tickFmt(yt.step)(v)));
+  }
+  svg.append(sv("text", { x: 2, y: 10, class: "lab" }, cfg.yLabel || ""));
+  // x axis
+  svg.append(sv("line", { x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b, stroke: "var(--axis)", "stroke-width": 1 }));
+  if (cat) {
+    const xs = [...new Set(all.map(p => p.x))].sort((a, b) => a - b);
+    for (const v of xs) svg.append(sv("text", { x: X(v), y: H - m.b + 14, "text-anchor": "middle" }, (cfg.catLabel || (k => "s" + k))(v)));
+  } else {
+    const xt = niceTicks(x0, x1, Math.max(3, Math.floor((W - m.l - m.r) / 90)));
+    for (const v of xt.ticks) {
+      if (v < x0 - 1e-9 || v > x1 + 1e-9) continue;
+      svg.append(sv("line", { x1: X(v), x2: X(v), y1: H - m.b, y2: H - m.b + 4, stroke: "var(--axis)" }));
+      svg.append(sv("text", { x: X(v), y: H - m.b + 15, "text-anchor": "middle" }, cfg.xTick ? cfg.xTick(v) : S.x === "runs" ? fk(v) : (Number.isInteger(v) ? v : v.toFixed(1)) + " h"));
+    }
+    let lastLab = -1e9, row = 0;
+    for (const mk of cfg.marks || segMarks()) {
+      if (mk.x < x0 - 1e-9 || mk.x > x1) continue;
+      svg.append(sv("line", { x1: X(mk.x), x2: X(mk.x), y1: m.t - 10, y2: H - m.b, stroke: cfg.marks ? "var(--muted)" : "var(--axis)", "stroke-width": 1, "stroke-dasharray": cfg.marks ? "4 3" : null }));
+      if (X(mk.x) - lastLab < (cfg.marks ? 90 : 24)) {   // the short restart segments sit too close together to label each
+        if (!cfg.marks) continue;
+        row = 1 - row;                                    // chain boundaries are all labelled: close ones on two rows
+      } else row = 0;
+      lastLab = X(mk.x);
+      const right = X(mk.x) > W - m.r - 80;
+      svg.append(sv("text", { x: X(mk.x) + (right ? -3 : 3), y: m.t - 3 - 12 * row, "text-anchor": right ? "end" : "start" }, mk.label));
+    }
+  }
+  svg.append(sv("text", { x: (m.l + W - m.r) / 2, y: H - 6, "text-anchor": "middle", class: "lab" }, cfg.xLabel || (cat ? "segment" : xLabel())));
+  for (const r of cfg.refs || []) {
+    svg.append(sv("line", { x1: m.l, x2: W - m.r, y1: Y(r.y), y2: Y(r.y), stroke: "var(--muted)", "stroke-width": 1 }));
+    svg.append(sv("text", { x: W - m.r - 2, y: Y(r.y) - 4, "text-anchor": "end", class: "lab" }, r.label));
+  }
+  // series
+  for (const s of series) {
+    const pts = s.pts.slice().sort((a, b) => a.x - b.x || 0);
+    if (s.err) for (const p of pts) if (p.lo != null && p.hi != null) {
+      svg.append(sv("line", { x1: X(p.x), x2: X(p.x), y1: Y(p.lo), y2: Y(p.hi), stroke: s.color, "stroke-width": 2, "stroke-linecap": "round", opacity: .45 }));
+      for (const e of [p.lo, p.hi]) svg.append(sv("line", { x1: X(p.x) - 5, x2: X(p.x) + 5, y1: Y(e), y2: Y(e), stroke: s.color, "stroke-width": 2, "stroke-linecap": "round", opacity: .45 }));
+    }
+    let dstr = "", prev = null;
+    for (const p of pts) {
+      const bk = cfg.breakKey || "seg", brk = !prev || (!cat && !cfg.joinSegs && prev[bk] !== p[bk]);
+      dstr += (brk ? "M" : "L") + X(p.x).toFixed(1) + " " + Y(p.y).toFixed(1); prev = p;
+    }
+    svg.append(sv("path", { d: dstr, fill: "none", stroke: s.color, "stroke-width": s.width || 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+    const dots = s.dots || pts.length <= 12;
+    for (const p of pts) if (dots || p.live || p.mark) svg.append(sv("circle", { cx: X(p.x), cy: Y(p.y), r: p.mark ? 3.5 : dots ? 4 : 3, fill: p.mark ? "var(--warn)" : p.live ? "var(--surface)" : s.color, stroke: p.live ? s.color : "var(--surface)", "stroke-width": 2 }));
+  }
+  // hover layer
+  const cross = sv("line", { y1: m.t - 10, y2: H - m.b, stroke: "var(--muted)", "stroke-width": 1, visibility: "hidden" });
+  const marks = series.map(s => sv("circle", { r: 4.5, fill: s.color, stroke: "var(--surface)", "stroke-width": 2, visibility: "hidden" }));
+  svg.append(cross, ...marks);
+  const hit = sv("rect", { x: m.l, y: 0, width: W - m.l - m.r, height: H - m.b + 4, fill: "transparent" });
+  const xsAll = [...new Set(all.map(p => p.x))].sort((a, b) => a - b);
+  function at(px, ev) {
+    let bx = xsAll[0], bd = Infinity; for (const v of xsAll) { const dd = Math.abs(X(v) - px); if (dd < bd) { bd = dd; bx = v; } }
+    cross.setAttribute("x1", X(bx)); cross.setAttribute("x2", X(bx)); cross.setAttribute("visibility", "visible");
+    const rows = []; let head = null;
+    series.forEach((s, i) => {
+      let bp = null, d2 = Infinity; for (const p of s.pts) { const dd = Math.abs(X(p.x) - X(bx)); if (dd < d2) { d2 = dd; bp = p; } }
+      if (bp && d2 <= 14) {
+        marks[i].setAttribute("cx", X(bp.x)); marks[i].setAttribute("cy", Y(bp.y)); marks[i].setAttribute("visibility", "visible");
+        rows.push({ color: s.color, value: bp.label || fmt(bp.y), name: s.name + (bp.extra ? " · " + bp.extra : "") });
+        if (!head || bp.x === bx) head = cat ? (cfg.catHead ? cfg.catHead(bp) : "segment " + bp.x) : bp.head || pointHead(bp);
+      } else marks[i].setAttribute("visibility", "hidden");
+    });
+    showTip(ev, head, rows);
+  }
+  hit.addEventListener("pointermove", ev => { const r = svg.getBoundingClientRect(); at((ev.clientX - r.left) * W / r.width, ev); });
+  hit.addEventListener("pointerleave", () => { cross.setAttribute("visibility", "hidden"); marks.forEach(k => k.setAttribute("visibility", "hidden")); hideTip(); });
+  svg.append(hit); c.append(svg);
+  if (cfg.note) c.append(h("div", { class: "note" }, cfg.note));
+  tableView(c, cfg.id || cfg.title, () => {
+    const keys = new Map();
+    series.forEach((s, i) => s.pts.forEach(p => { const k = p.x; if (!keys.has(k)) keys.set(k, { p, v: [] }); keys.get(k).v[i] = p.label || fmt(p.y); }));
+    const rows = [...keys.entries()].sort((a, b) => a[0] - b[0]);
+    return h("table", null, h("thead", null, h("tr", null, h("th", null, "seg"), cat ? null : h("th", { class: "n" }, "runs"), cat ? null : h("th", null, "UTC"), series.map(s => h("th", { class: "n" }, s.name)))),
+      h("tbody", null, rows.map(([k, r]) => h("tr", null, h("td", null, r.p.seg != null ? r.p.seg : k), cat ? null : h("td", { class: "n" }, fi(r.p.runs)), cat ? null : h("td", null, r.p.ts ? tUTC(r.p.ts) : "–"), series.map((s, i) => h("td", { class: "n" }, r.v[i] == null ? "" : r.v[i]))))));
+  });
+  });
+  return c;
+}
+/* stacked share bars over segments. cfg: {title,sub,cats:[{k,label,n}],parts:[{name,color}],values:[[..per part] per cat] (shares 0..1)} */
+function stackChart(host, cfg) {
+  const c = card(host, cfg.title, cfg.sub);
+  if (!cfg.cats.length) { c.append(h("div", { class: "empty" }, cfg.empty || "No run records on the laptop yet. Run a light sync.")); return c; }
+  c.append(legendRow(cfg.parts, true));
+  Q.push(() => {
+  const W = Math.max(300, c.clientWidth - 28), H = 232, m = { l: 46, r: 16, t: 30, b: 40 };
+  const svg = sv("svg", { class: "chart", viewBox: `0 0 ${W} ${H}`, height: H, role: "img", "aria-label": cfg.title });
+  const Y = v => H - m.b - v * (H - m.t - m.b), band = (W - m.l - m.r) / cfg.cats.length, bw = Math.min(24, band * 0.6);
+  for (const v of [0, .25, .5, .75, 1]) {
+    svg.append(sv("line", { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v), stroke: v ? "var(--grid)" : "var(--axis)" }));
+    svg.append(sv("text", { x: m.l - 6, y: Y(v) + 3.5, "text-anchor": "end" }, Math.round(v * 100)));
+  }
+  svg.append(sv("text", { x: 2, y: 10, class: "lab" }, "share of runs, %"));
+  svg.append(sv("text", { x: (m.l + W - m.r) / 2, y: H - 6, "text-anchor": "middle", class: "lab" }, "segment"));
+  cfg.cats.forEach((cat, i) => {
+    const cx = m.l + band * (i + .5); let acc = 0;
+    svg.append(sv("text", { x: cx, y: H - m.b + 14, "text-anchor": "middle" }, cat.label));
+    cfg.values[i].forEach((v, j) => {
+      if (!(v > 0)) return;
+      const y1 = Y(acc + v), y0 = Y(acc), hh = Math.max(0, y0 - y1 - 2); acc += v;
+      if (hh <= 0) return;
+      const r = sv("rect", { x: cx - bw / 2, y: y1 + 1, width: bw, height: hh, fill: cfg.parts[j].color, rx: 2 });
+      const tipf = ev => showTip(ev, "segment " + cat.k + " · " + fi(cat.n) + " runs", cfg.parts.map((p, q) => ({ color: p.color, value: fp(100 * cfg.values[i][q]), name: p.name })));
+      r.addEventListener("pointermove", tipf); r.addEventListener("pointerleave", hideTip);
+      svg.append(r);
+    });
+  });
+  c.append(svg);
+  tableView(c, cfg.id || cfg.title, () => h("table", null, h("thead", null, h("tr", null, h("th", null, "seg"), h("th", { class: "n" }, "runs"), cfg.parts.map(p => h("th", { class: "n" }, p.name)))),
+    h("tbody", null, cfg.cats.map((cat, i) => h("tr", null, h("td", null, cat.k), h("td", { class: "n" }, fi(cat.n)), cfg.values[i].map(v => h("td", { class: "n" }, fp(100 * v))))))));
+  });
+  return c;
+}
+function tbl(cols, rows, cls) {
+  return h("table", { class: cls }, h("thead", null, h("tr", null, cols.map(c => h("th", { class: c.n ? "n" : null, title: c.t }, c.h)))),
+    h("tbody", null, rows.map(r => h("tr", { class: r._dim ? "dim" : null }, cols.map(c => { const v = c.f(r); return h("td", { class: (c.n ? "n " : "") + (c.wrap ? "wrap" : "") + (c.nw ? "nw" : "") }, v == null ? "–" : v); })))));
+}
+function heatCell(v, max, text) {
+  const a = v == null || !max ? 0 : Math.min(1, v / max) * 55;
+  return h("td", { class: "heat", style: "background: color-mix(in srgb, var(--seq) " + a.toFixed(0) + "%, transparent)" }, text);
+}
+const RESULT = { ok: ["good", "✓", "ok"], guard: ["warn", "⚠", "stopped by guard"], failed: ["crit", "✕", "failed"], interrupted: ["info", "↻", "interrupted (restart)"],
+  recovered: ["good", "↻", "recovered"], discarded: ["warn", "∅", "discarded"], running: ["info", "▶", "running"], stale: ["warn", "?", "no news"], open: ["warn", "?", "no end line yet"] };
+const RESULT_COL = { ok: "var(--good)", guard: "var(--warn)", failed: "var(--crit)", interrupted: "var(--gray)", recovered: "var(--s3)", discarded: "var(--crit)", running: "var(--s1)", stale: "var(--gray)", open: "var(--gray)" };
+function resultTag(r, label) {
+  const m = RESULT[r] || ["warn", "?", r || "unknown"];
+  return h("span", { class: "tag" }, h("span", { class: "dot " + m[0] }), m[1] + " " + (label || m[2]));
+}
+const STALE = 900;           // status.txt older than this (s): the server is unreachable or the chain stopped
+// a segment that status.txt last showed running, when status.txt is old: no news, not "running"
+function segResult(s) { return s.result === "running" && statusAge() > STALE ? "stale" : s.result; }
+// result with what it means: "recovered (10,320 runs, ~31 min)", "discarded (why)", lost with the host
+function resultCell(s) {
+  const r = segResult(s), mins = s.duration ? Math.round(s.duration / 60) : null;
+  if (r === "recovered") return h("span", null, resultTag(r, "recovered (" + fi(s.runs_total) + " runs" + (mins != null ? ", ~" + mins + " min" : "") + ")"),
+    s.why ? h("span", { class: "note" }, " · " + s.why) : null);
+  if (r === "discarded") return h("span", null, resultTag(r, s.lost ? "lost" : "discarded"), " (" + (s.why || "not adopted") + ")");
+  if (r === "stale") return h("span", null, resultTag(r), " — status.txt last showed it running " + ago(statusAge()) + "; the server is unreachable or the chain stopped");
+  return h("span", null, resultTag(r), s.why ? " — " + s.why : "");
+}
+function resultShort(s) {
+  const r = segResult(s);
+  return r === "recovered" ? "recovered (" + fi(s.runs_total) + " runs" + (s.duration ? ", ~" + Math.round(s.duration / 60) + " min" : "") + ")" :
+    r === "discarded" ? (s.lost ? "lost" : "discarded") + " (" + (s.why || "not adopted") + ")" : (RESULT[r] || [0, 0, r || "?"])[2];
+}
+
+/* ---------- top bar: data as of, sync ---------- */
+function statusAge() { const st = S.data && S.data.status; return st && st.updated ? now() - st.updated : null; }
+function renderTop() {
+  const d = S.data, sy = S.sync || {}, ps = S.parse || {};
+  const ri = S.runinfo;
+  if (d) { const ci = d.chain_info || {}; $("runname").textContent = "· chain " + d.run + (ci.character ? " · " + ci.character + " · game " + ci.game : "") + (ri && ri.choice === "auto" ? " (auto: newest)" : ""); }
+  if (ri && document.activeElement !== $("runsel")) {
+    const sel = $("runsel"), when = c => c.status_at ? " · status " + dUTC(c.status_at).slice(5) + " " + tUTC(c.status_at) : "";
+    sel.replaceChildren(h("option", { value: "auto" }, "auto (newest: " + ri.auto + ")"),
+      ...ri.chains.map(c => h("option", { value: c.name }, c.name + when(c) + (c.root && c.root !== "s3" ? " · root " + c.root : "") + (c.local ? "" : " · not synced"))));
+    sel.value = ri.choice;
+  }
+  const a = $("asof"); a.replaceChildren();
+  const st = d && d.status;
+  if (st && st.present && st.updated) {
+    const age = statusAge(), idle = ["paused", "finished"].includes(st.kind), cls = idle ? "info" : age > STALE ? "crit" : age > 600 ? "warn" : "good";
+    a.append(h("span", null, "Data as of ", h("b", null, dUTC(st.updated) + " " + tUTC(st.updated, true)), " · ", h("b", null, tLoc(st.updated, true))),
+      h("span", { class: "pill " + cls }, h("span", { class: "dot " + cls }), cls === "crit" ? "status " + ago(age).replace(" ago", "") + " old: server unreachable or chain stopped" :
+        "status.txt " + ago(age) + (idle ? " · chain " + st.kind : cls === "good" ? "" : " · getting old")));
+    const H = d.hosts;
+    if (st.host) a.append(h("span", { class: "pill info", title: H && H.intervals.length ? "Hosts of this chain: " + H.intervals.map(x => x.host + " " + dUTC(x.from).slice(5) + " " + tUTC(x.from) + "–" + tUTC(x.to) + (x.note ? " (" + x.note + ")" : "")).join(" → ") : null },
+      "host " + st.host + (H && H.intervals.length > 1 ? " · " + H.intervals.length + " hosts so far" : "")));
+  } else if (d) a.append(h("span", { class: "pill warn" }, h("span", { class: "dot warn" }), "No status.txt on the laptop yet: run a light sync"));
+  if (ps.busy) a.append(h("span", null, "reading local files… ", ps.what || ""));
+  if (ps.error) a.append(h("span", { class: "pill crit" }, "parser error: " + ps.error.slice(0, 200)));
+  // sync line
+  const l = $("syncline"); l.replaceChildren();
+  $("b-light").disabled = $("b-full").disabled = !!sy.running; $("b-prev").disabled = !!sy.running || !!sy.preview_running;
+  if (document.activeElement !== $("auto")) $("auto").value = String(sy.auto_minutes || 0);
+  if (sy.running) {
+    const p = sy.progress || {}, frac = p.total_bytes ? p.bytes / p.total_bytes : null;
+    l.append(h("span", null, h("b", null, "Sync running (" + sy.level + (p.source === "auto" ? ", auto" : "") + ") "), h("span", { class: "bar" + (frac == null ? " ind" : "") }, h("i", { style: frac == null ? null : "width:" + (100 * frac).toFixed(1) + "%" })),
+      " ", p.total_files != null ? `${p.files || 0} of ${p.total_files} changed files, ${fmib(p.bytes || 0)} of ${fmib(p.total_bytes || 0)}, ${fmib(p.speed || 0)}/s, checked ${p.checks || 0}` : "listing Nextcloud…", " · started " + ago(now() - sy.started_at)));
+  } else if (sy.last_finished_at) {
+    const t = sy.last_transferred || {};
+    if (sy.last_ok) l.append(h("span", null, "Last sync: ", h("b", null, sy.last_level + (sy.last_runs && sy.last_runs.length ? " " + sy.last_runs.join(", ") : "")), " finished " + tLoc(sy.last_finished_at) + " (" + ago(now() - sy.last_finished_at) + "), " + fi(t.files) + " files / " + fmib(t.bytes) + " downloaded in " + dur(sy.last_seconds)));
+    else {
+      l.append(h("span", { class: "err" }, "⚠ Last sync (" + sy.last_level + ") failed " + tLoc(sy.last_finished_at) + " (" + ago(now() - sy.last_finished_at) + "): " + (sy.last_error || "unknown error") + " — the panel keeps showing the local copy."));
+      if (sy.last_ok_at) l.append(h("span", null, "Last successful sync " + ago(now() - sy.last_ok_at)));
+    }
+  } else l.append(h("span", null, "No sync has run from this panel yet. A first light sync of a chain is about 35 MiB per finished segment (a few minutes over WebDAV); later syncs fetch changed files only."));
+  if (sy.auto_minutes) l.append(h("span", null, "Auto-sync (" + sy.auto_level + ") every " + sy.auto_minutes + " min, next " + (sy.next_auto_at ? tLoc(sy.next_auto_at) : "–")));
+  if (sy.preview_running) l.append(h("span", null, "Listing Nextcloud… ", h("span", { class: "bar ind" }, h("i"))));
+  else if (sy.preview_error) l.append(h("span", { class: "err" }, "⚠ Nextcloud could not be listed: " + sy.preview_error));
+  else if (sy.preview) {
+    const p = sy.preview, f = x => `${fi(x.todo_files)} files / ${fmib(x.todo_bytes)} to download (${fi(x.remote_files)} files / ${fmib(x.remote_bytes)} on Nextcloud)`;
+    l.append(h("span", null, "Checked " + tLoc(p.checked_at) + " — ", h("b", null, "light: "), f(p.light), " · ", h("b", null, "full: "), f(p.full)));
+  }
+  document.documentElement.style.setProperty("--toph", $("top").offsetHeight + "px");
+}
+
+/* ---------- run header ---------- */
+function renderRun() {
+  const d = S.data, st = d.status || {}, host = $("run"); host.replaceChildren();
+  const t = now(), age = statusAge(), sy = S.sync || {};
+  // banners
+  const ban = (cls, icon, ...txt) => host.append(h("div", { class: "banner " + cls, role: cls === "crit" ? "alert" : "status" }, h("span", { class: "ic" }, icon), h("div", null, ...txt)));
+  for (const n of d.info || []) ban("info", "ℹ", n);
+  for (const n of d.notes || []) ban("warn", "⚠", n);
+  if (!st.present) ban("warn", "⚠", h("b", null, "No status.txt on the laptop. "), "Press “Sync light” to pull the run’s logs from Nextcloud (" + (sy.remote || "") + ").");
+  else if (st.kind === "finished") ban("good", "✓", h("b", null, "The run has finished. "), "status.txt, written " + both(st.updated) + ": “" + st.state + "”. Run one more light sync (or a full one) to pull the last segment’s logs.");
+  else if (st.kind === "stopped") ban("crit", "✕", h("b", null, "The run stopped early. "), "status.txt, written " + both(st.updated) + ": “" + st.state + "”. See Problems below.");
+  else if (st.kind === "paused") ban("info", "⏸", h("b", null, "The chain is paused. "), "status.txt, written " + both(st.updated) + ": “" + st.state + "”" + (d.pause ? "; supervisor.log " + both(d.pause.ts) + ": “" + d.pause.text + "”" : "") + ". It goes on when it is resumed on the server (a resume, or a newer chain, shows up here after the next sync).");
+  else {
+    const sinceSync = sy.last_ok_at ? t - sy.last_ok_at : null;
+    if (d.end_time && t > d.end_time + 1200) ban("warn", "⚠", h("b", null, "The scheduled end (" + both(d.end_time) + ") has passed"), ", but the local status.txt (written " + ago(age) + ") does not say FINISHED. Sync to get the final state.");
+    else if (age != null && age > STALE) {
+      if (sinceSync == null || sinceSync > 600) ban("warn", "⚠", h("b", null, "The local status.txt is " + dur(age) + " old. "), "The last successful sync from this panel was " + (sinceSync == null ? "never" : ago(sinceSync)) + ". Press “Sync light” to see the current state.");
+      else ban("crit", "✕", h("b", null, "status " + dur(age) + " old: server unreachable or chain stopped. "), "status.txt on Nextcloud was last written " + both(st.updated) + " (by host " + (st.host || "?") + "), although it was synced " + ago(sinceSync) + ". The supervisor rewrites it every 5 minutes during a segment; gaps up to about 15 minutes are normal around an evaluation. Longer than that: the server (an interruptible one may be stopped), the supervisor or its upload has stopped. What status.txt says about the running segment is from then.");
+    }
+  }
+  if (st.present && st.kind !== "paused" && d.pause && d.pause.state === "pending") ban("info", "⏸", h("b", null, "Pause flag set: "), "the chain pauses at the end of the running segment (supervisor.log " + both(d.pause.ts) + ": “" + d.pause.text + "”).");
+  if (!st.present) return;
+  // tiles
+  const cur = d.segments.find(s => s.seg === st.segment) || {}, lastEval = d.eval.filter(e => e.e).pop() || null;
+  const tiles = h("div", { class: "tiles" }); host.append(tiles);
+  const tile = (l, v, dd, extra) => tiles.append(h("div", { class: "tile" }, h("div", { class: "l" }, l), h("div", { class: "v" }, v), extra, h("div", { class: "d" }, dd)));
+  const stale = age != null && age > STALE && !["paused", "finished", "stopped"].includes(st.kind);
+  const kindTxt = stale ? "no news since " + tUTC(st.updated) : { running: "running", evaluating: "evaluating", between: "between segments", paused: "paused", finished: "finished", stopped: "stopped", unknown: "state unknown" }[st.kind] || st.kind;
+  tile("State (status.txt)", ["Segment " + (st.segment != null ? st.segment : "–"), h("small", null, " " + kindTxt)],
+    (stale ? "status " + dur(age) + " old: server unreachable or chain stopped. It said: " : "") +
+    (st.seg_planned ? fi(st.seg_elapsed) + " of " + fi(st.seg_planned) + " s when written · started " + (cur.start ? tUTC(cur.start) + " · " + tLoc(cur.start) : "–") : "“" + (st.state || "") + "”"),
+    st.seg_planned ? h("div", { class: "meter" }, h("i", { style: "width:" + Math.min(100, 100 * st.seg_elapsed / st.seg_planned).toFixed(1) + "%" })) : null);
+  tile("Self-play runs so far", fi(st.runs_so_far), (cur.runs_live ? "+" + fi(cur.runs_total) + " in this segment" + (stale ? " (as of " + tUTC(st.updated) + ")" : "") + (cur.runs_per_hour ? " · " + fi(cur.runs_per_hour) + " runs/h" : "") : "all segments, as counted by the supervisor") +
+    (st.runs_so_far_logged != null ? ". The restored chain logs " + fi(st.runs_so_far_logged) + ": it counts only the run records that reached Nextcloud; the panel adds the " + fi(st.runs_so_far - st.runs_so_far_logged) + " runs before the restore that it lost" : ""));
+  const left = d.end_time ? d.end_time - t : null;
+  const over = st.kind === "finished" || st.kind === "stopped";
+  const EM = (d.interruptions && d.interruptions.summary.end_moves) || [];
+  tile(over ? "Scheduled end" : "Time left", over ? (st.kind === "finished" ? "finished" : "stopped") : left == null ? "–" : left > 0 ? dur(left) : "ended", (d.end_time ? "ends " + dUTC(d.end_time).slice(5) + " " + tUTC(d.end_time) + " · " + tLoc(d.end_time) + (st.min_left != null ? " (status.txt said " + st.min_left + " min)" : "") : "end time unknown") +
+    (EM.length ? (() => { const s = EM.reduce((a, m) => a + m.to - m.from, 0); return " · end moved " + EM.length + "× since the start, " + (s >= 0 ? "+" : "−") + dur(Math.abs(s)) + " in all (see Interruptions)"; })() : ""),
+    d.run_start && d.end_time ? h("div", { class: "meter" }, h("i", { style: "width:" + Math.max(0, Math.min(100, 100 * (t - d.run_start) / (d.end_time - d.run_start))).toFixed(1) + "%" })) : null);
+  if (lastEval && lastEval.e) tile("Latest A" + d.target_asc + " evaluation (segment " + lastEval.seg + ")", [lastEval.e.won + " of " + lastEval.e.ok, h("small", null, " runs won")],
+    "mean floor " + fx(lastEval.e.floor) + " · act 1 cleared " + fp(lastEval.e.act1, 0) + " · act 2 cleared " + fp(lastEval.e.act2, 0));
+  else tile("Latest A" + d.target_asc + " evaluation", "–", "no evaluation line on the laptop yet");
+  const w = (st.weights || "").split("|").map(x => x.trim().replace("src/s3/runs/", "").replace("src/s3/", ""));
+  tile("Weights in use", h("span", { style: "font-size:15px" }, (w[0] || "–").split("/")[0]), "combat " + (w[0] || "–") + " · macro " + (w[1] || "–"));
+  const HI = (d.hosts && d.hosts.intervals) || [];
+  tile("Server when written", h("span", null, "GPU " + (st.gpu || "–")), "disk " + (st.disk || "–") + " · load " + (st.load || "–") + " · host " + (st.host || "–") +
+    (HI.length > 1 ? ". Hosts so far: " + HI.map(x => x.host + " (" + dUTC(x.from).slice(5) + " " + tUTC(x.from) + " to " + (x.to >= (st.updated || 0) - 60 && x.host === st.host ? "now" : dUTC(x.to).slice(5) + " " + tUTC(x.to)) + (x.note ? ", " + x.note : "") + ")").join(" → ") : ""));
+  const ci = d.chain_info || {}, C = d.curriculum;
+  tile("Chain", h("span", { style: "font-size:17px" }, (ci.character || "–") + " · game " + (ci.game || "–")),
+    "target A" + d.target_asc + (C && C.stage ? " · curriculum stage " + C.stage : "") + (ci.era != null ? " · era " + ci.era : "") + " · Nextcloud " + (ci.remote || "–").replace(/^nextcloud:/, ""));
+  // timeline ribbon
+  if (d.run_start && d.end_time) host.append(ribbon(d, st, t));
+  interruptionsCard(d, host);
+  // live self-play table from status.txt
+  const sp = st.selfplay || {};
+  if (sp.groups && sp.groups.length) {
+    const c = h("div", { class: "card", style: "margin-top:12px" }, h("h3", null, "Self-play in the last two segments, in six groups by training order (from status.txt)"),
+      h("div", { class: "sub" }, (sp.head || "") + " — the only self-play figures that include the running segment; written " + tUTC(st.updated) + " · " + tLoc(st.updated) + "."));
+    const cols = [{ h: "level", f: r => r.g }, { h: "group", f: r => r.bucket, n: 1 }, { h: "runs", f: r => fi(r.runs), n: 1 }, { h: "won", f: r => fp(r.won), n: 1 }, { h: "acts cleared", f: r => fx(r.acts, 3), n: 1 },
+      { h: "act 1 cleared", f: r => fp(r.act1, 0), n: 1 }, { h: "act 2 cleared", f: r => fp(r.act2, 0), n: 1 }, { h: "mean floor", f: r => fx(r.floor), n: 1 }, { h: "elites / run", f: r => fx(r.elites, 2), n: 1 }, { h: "deck", f: r => fx(r.deck), n: 1, t: "Cards in the deck at the end of the run, mean" },
+      { h: "hallway won", f: r => fp(r.hallway), n: 1 }, { h: "elite won", f: r => fp(r.elite), n: 1 }, { h: "boss won", f: r => fp(r.boss), n: 1 }, { h: "weights (combat/macro)", f: r => r.versions }];
+    c.append(h("div", { class: "scroll free" }, tbl(cols, sp.groups.flatMap(g => g.rows.map(r => ({ ...r, g: g.name }))))));
+    host.append(c);
+  }
+  const sd = st.stages_dir || [];
+  if (sd.length) {
+    const c = h("div", { class: "card", style: "margin-top:12px" }, h("h3", null, "How far self-play runs get, per segment directory (from status.txt)"),
+      h("div", { class: "sub" }, "curve_runs.py’s act funnel of the last two segments, the running one included (runs with errors or perturbed starts left out). “act 2 cleared” is of the runs that cleared act 1; the act-3 columns are of the runs in act 3."));
+    c.append(h("div", { class: "scroll free" }, tbl([{ h: "segment", f: r => r.dir }, { h: "level", f: r => "A" + r.asc }, { h: "runs", f: r => fi(r.runs), n: 1 }, { h: "act 1 cleared", f: r => fp(r.act1), n: 1 },
+      { h: "act 2 cleared (of those)", f: r => fp(r.act2_of), n: 1 }, { h: "act 3: reach the boss", f: r => fp(r.boss_reach), n: 1 }, { h: "boss 1 won", f: r => fp(r.boss1), n: 1 }, { h: "boss 2 won", f: r => fp(r.boss2), n: 1 },
+      { h: "runs won", f: r => fp(r.won, 2), n: 1 }, { h: "act-3 runs lost at", f: r => (r.lost_at || []).map(x => x[0] + " " + fp(x[1])).join(", "), wrap: 1 }], sd)));
+    host.append(c);
+  }
+  const det = h("details", { class: "tv" }, h("summary", null, "status.txt as written (" + both(st.updated) + ")"), h("pre", { class: "raw" }, st.raw || ""));
+  det.open = !!S.open.rawstatus; det.addEventListener("toggle", () => S.open.rawstatus = det.open); host.append(det);
+}
+function ribbon(d, st, t) {
+  const c = h("div", { class: "card ribbon", style: "margin-top:12px" }, h("h3", null, "Run timeline"),
+    h("div", { class: "sub" }, "One block per segment, width = wall-clock time; the gaps after a segment are its evaluation. " + dUTC(d.run_start).slice(5) + " " + tUTC(d.run_start) + " to " + dUTC(d.end_time).slice(5) + " " + tUTC(d.end_time) + " (" + tLoc(d.run_start) + " to " + tLoc(d.end_time) + ")."));
+  const W = Math.max(300, ($("run").clientWidth || 1000) - 28), H = 74, m = { l: 4, r: 4 }, y = 22, bh = 26;
+  const X = ts => m.l + (ts - d.run_start) / (d.end_time - d.run_start) * (W - m.l - m.r);
+  const svg = sv("svg", { class: "chart", viewBox: `0 0 ${W} ${H}`, height: H, role: "img", "aria-label": "Run timeline" });
+  svg.append(sv("rect", { x: m.l, y, width: W - m.l - m.r, height: bh, fill: "var(--wash)", rx: 4 }));
+  // interruptions under the segments: downtime (last heartbeat to restart) and pauses as hatched spans, quick restarts as ticks
+  for (const e of (d.interruptions && d.interruptions.entries) || []) {
+    const a = e.kind === "pause" ? e.ts : e.since, b = e.kind === "pause" ? (e.until || t) : e.until || e.ts;
+    if (e.kind === "restore") continue;
+    const tipf = evt => showTip(evt, intTitle(e), intRows(e));
+    if (a != null && b - a > 60) {
+      const r = sv("rect", { x: X(a), y: y - 4, width: Math.max(2, X(b) - X(a)), height: bh + 8, fill: e.kind === "pause" ? "var(--gray)" : "var(--crit)", opacity: .28, rx: 2, tabindex: 0 });
+      r.addEventListener("pointermove", tipf); r.addEventListener("pointerleave", hideTip); svg.append(r);
+    } else {
+      const r = sv("rect", { x: X(e.ts) - 1.5, y: y - 6, width: 3, height: bh + 12, fill: "var(--crit)", rx: 1, tabindex: 0 });
+      r.addEventListener("pointermove", tipf); r.addEventListener("pointerleave", hideTip); svg.append(r);
+    }
+  }
+  for (const s of d.segments) {
+    if (s.start == null) continue;
+    const res = segResult(s);
+    const e = s.end || (s.result === "running" ? Math.max(s.start + 60, st.updated || s.start) : s.start + 60);
+    const x = X(s.start), w = Math.max(2, X(e) - x - 2);
+    const r = sv("rect", { x, y, width: w, height: bh, fill: RESULT_COL[res] || "var(--gray)", rx: 3, tabindex: 0, opacity: res === "running" ? .75 : res === "discarded" ? .45 : 1 });
+    const ev = s.eval;
+    r.addEventListener("pointermove", evt => showTip(evt, "segment " + s.seg + " · " + tUTC(s.start) + " to " + (s.end ? tUTC(s.end) : "…") + " (" + tLoc(s.start) + ")" + (s.host ? " · host " + s.host : ""), [
+      { value: resultShort(s), name: res === "recovered" || res === "discarded" ? "" : s.why || "result" },
+      { value: fi(s.runs_total), name: "runs" + (s.runs_per_hour ? " · " + fi(s.runs_per_hour) + "/h" : "") },
+      { value: dur(s.duration), name: "duration" + (s.end_est ? " (to the " + s.end_est + ")" : "") }].concat(ev ? [{ value: ev.won + "/" + ev.ok, name: "A10 eval won · floor " + fx(ev.floor) + " · act 2 " + fp(ev.act2, 0) }] : [])));
+    r.addEventListener("pointerleave", hideTip); svg.append(r);
+    if (w > 54) svg.append(sv("text", { x: x + 6, y: y + 17, class: s.result === "guard" ? "ind" : "in" }, "s" + s.seg + (w > 96 ? " · " + fk(s.runs_total) + " runs" : "")));
+  }
+  // hour ticks (UTC), local below: every 2 h, or wider so that labels do not overlap on a long run (7 days: 12 h)
+  const step = [2, 3, 6, 12, 24].map(x => x * 3600).find(x => (W - m.l - m.r) * x / (d.end_time - d.run_start) >= 60) || 86400;
+  for (let ts = Math.ceil(d.run_start / step) * step; ts <= d.end_time; ts += step) {
+    const dt = new Date(ts * 1000), day = step >= 6 * 3600 && dt.getUTCHours() === 0 ? dUTC(ts).slice(5) + " " : "";
+    svg.append(sv("line", { x1: X(ts), x2: X(ts), y1: y + bh, y2: y + bh + 4, stroke: "var(--axis)" }));
+    svg.append(sv("text", { x: X(ts), y: y + bh + 15, "text-anchor": "middle" }, day + p2(dt.getUTCHours()) + " UTC"));
+    svg.append(sv("text", { x: X(ts), y: y + bh + 26, "text-anchor": "middle", opacity: .7 }, p2(dt.getHours()) + " local"));
+  }
+  if (t > d.run_start && t < d.end_time) {
+    svg.append(sv("line", { x1: X(t), x2: X(t), y1: y - 6, y2: y + bh + 2, stroke: "var(--ink)", "stroke-width": 2 }));
+    svg.append(sv("text", { x: X(t), y: y - 9, "text-anchor": X(t) > W - 60 ? "end" : "middle", class: "lab" }, "now"));
+  }
+  if (st.updated && st.updated > d.run_start && st.updated < d.end_time && X(t) - X(st.updated) > 75) {
+    svg.append(sv("line", { x1: X(st.updated), x2: X(st.updated), y1: y - 3, y2: y + bh + 2, stroke: "var(--muted)", "stroke-width": 1 }));
+    svg.append(sv("text", { x: X(st.updated) - 3, y: y - 9, "text-anchor": "end" }, "status.txt"));
+  }
+  const used = new Set(d.segments.map(segResult));
+  c.append(svg, h("div", { class: "legend" }, ["ok", "guard", "failed", "interrupted", "recovered", "discarded", "running", "stale"].filter(k => used.has(k) || ["ok", "running"].includes(k)).map(k => h("span", null, resultTag(k))),
+    (d.interruptions && d.interruptions.entries.length) ? [h("span", null, h("span", { class: "sw", style: "background:var(--crit);opacity:.35" }), "down (last heartbeat to restart)"), h("span", null, h("span", { class: "sw", style: "background:var(--gray);opacity:.45" }), "paused / stopped by hand"),
+      h("span", null, h("span", { class: "sw", style: "background:var(--crit);width:3px" }), "restart (under 3 min down)")] : null));
+  return c;
+}
+/* ---------- interruptions (s3_resume.sh restarts, adoption of the interrupted segment, pauses, restores) ---------- */
+function intTitle(e) {
+  return e.kind === "pause" ? "paused / stopped " + both(e.ts) : e.kind === "restore" ? "restore " + both(e.ts) : "restart " + both(e.ts);
+}
+function intOutcome(e) {
+  return e.outcome === "recovered" ? "segment " + e.seg + " recovered (" + fi(e.runs) + " runs)" : e.outcome === "discarded" ? "segment " + e.seg + " discarded (" + (e.why || "not adopted") + ")" :
+    e.outcome === "lost" ? "segment " + e.seg + " lost (" + fi(e.runs) + " runs seen; " + (e.why || "") + ")" :
+    e.seg != null ? (s => "segment " + e.seg + (s ? ": " + resultShort(s) + (s.why && !["recovered", "discarded"].includes(s.result) ? " (" + s.why + ")" : "") : "") + " — no adoption line (older supervisor)")(S.data.segments.find(q => q.seg === e.seg)) :
+    e.kind === "restart" ? "between segments (evaluation or boundary)" : "–";
+}
+function intDown(e) {
+  if (e.kind === "pause") return e.until ? dur(e.until - e.ts) : "since " + tUTC(e.ts) + " (not resumed yet)";
+  if (e.kind === "restore") return "–";
+  return e.downtime_min != null ? e.downtime_min + " min" : e.downtime_est_min != null ? "≈ " + e.downtime_est_min + " min (from the " + e.since_est + ")" :
+    e.how === "supervisor start" || !(S.data.interruptions && S.data.interruptions.summary.adoptive) ? "unknown" : "under 3 min";
+}
+function intRows(e) {
+  const r = [{ value: intDown(e), name: e.kind === "pause" ? "paused" : "down" + (e.since ? " since " + tUTC(e.since) : "") }, { value: intOutcome(e), name: "" }];
+  if (e.evals_rerun && e.evals_rerun.length) r.push({ value: "eval " + e.evals_rerun.join(", "), name: "run again (cut off)" });
+  if (e.carry_reupload != null) r.push({ value: "carry " + e.carry_reupload, name: "uploaded again" });
+  if (e.end_to) r.push({ value: dUTC(e.end_to).slice(5) + " " + tUTC(e.end_to), name: "end moved to" });
+  return r;
+}
+function interruptionsCard(d, host) {
+  const I = d.interruptions; if (!I || !I.entries.length) return;
+  const s = I.summary, em = s.end_moves || [];
+  const outc = [s.recovered ? s.recovered + " segment(s) recovered" : null, s.discarded ? s.discarded + " discarded" : null, s.lost ? s.lost + " lost with the host" : null, s.between_segments ? s.between_segments + " between segments" : null].filter(Boolean);
+  const parts = [s.restarts + " restart" + (s.restarts === 1 ? "" : "s") + (outc.length ? " (" + outc.join(", ") + ")" : ""),
+    s.adoptive ? "downtime logged by s3_resume.sh " + s.downtime_min + " min over " + s.with_downtime + " restart(s)" + (s.downtime_est_min ? " + ≈ " + s.downtime_est_min + " min while a host was lost (estimated)" : "") + "; restarts under 3 min are not logged" :
+      "downtime unknown (this supervisor wrote no heartbeat and adopted no interrupted segment)",
+    s.pauses ? "paused / stopped by hand " + s.pauses + "× for " + dur(s.paused_s) + (s.open_pause ? " (one not resumed yet)" : "") : null,
+    s.restores ? s.restores + " restore(s) from Nextcloud" : null,
+    em.length ? "end moved " + em.length + "×: now " + dUTC(em[em.length - 1].to).slice(5) + " " + tUTC(em[em.length - 1].to) : null].filter(Boolean);
+  const c = h("div", { class: "card", style: "margin-top:12px" }, h("h3", null, "Interruptions"),
+    h("div", { class: "sub" }, parts.join(" · ") + ". From supervisor.log: s3_resume.sh restarts the chain when no supervisor runs (“downtime N min” when the last heartbeat is over 3 min old; the end moves by that much), the new supervisor adopts the interrupted segment when it has weights and complete carries (“recovered”; its partial training counts) or discards it (the chain goes on from the segment before), and re-runs a cut-off evaluation."));
+  c.append(h("div", { class: "scroll" }, tbl([
+    { h: "restarted / paused (UTC · local)", f: e => dUTC(e.ts).slice(5) + " " + tUTC(e.ts) + " · " + tLoc(e.ts), nw: 1 },
+    { h: "kind", f: e => e.kind === "restart" ? (e.how === "supervisor start" ? "restart by hand" : "s3_resume.sh restart") : e.kind === "pause" ? "pause / stop" : "restore" },
+    { h: "down since", f: e => e.kind === "pause" ? (e.until ? "until " + tUTC(e.until) : "–") : e.since ? tUTC(e.since) + (e.since_est ? " (≈)" : "") : "–", nw: 1 },
+    { h: "downtime", f: e => intDown(e), n: 1 },
+    { h: "segment affected", f: e => e.kind === "restore" ? e.first + (e.lines > 1 ? " … " + e.text : "") : intOutcome(e), wrap: 1 },
+    { h: "host", f: e => { const x = e.seg != null && d.segments.find(q => q.seg === e.seg); return x && x.host ? x.host : "–"; } },
+    { h: "afterwards", f: e => [e.evals_rerun && e.evals_rerun.length ? "evaluation of segment " + e.evals_rerun.join(", ") + " run again" : null, e.carry_reupload != null ? "carry backup of segment " + e.carry_reupload + " uploaded again" : null,
+      e.end_to ? "end → " + dUTC(e.end_to).slice(5) + " " + tUTC(e.end_to) : null, e.resumed_by ? "ended by " + e.resumed_by : null].filter(Boolean).join("; ") || "–", wrap: 1 }],
+    I.entries.slice().reverse())));
+  if (em.length) {
+    const det = h("details", { class: "tv" }, h("summary", null, "End-time moves (" + em.length + ")"), h("div", { class: "scroll" }, tbl([{ h: "when (UTC)", f: m => dUTC(m.ts).slice(5) + " " + tUTC(m.ts), nw: 1 }, { h: "why", f: m => m.why },
+      { h: "from", f: m => dUTC(m.from).slice(5) + " " + tUTC(m.from), nw: 1 }, { h: "to", f: m => dUTC(m.to).slice(5) + " " + tUTC(m.to), nw: 1 }, { h: "by", f: m => (m.to >= m.from ? "+" : "−") + dur(Math.abs(m.to - m.from)), n: 1 }], em.slice().reverse())));
+    det.open = !!S.open.endmoves; det.addEventListener("toggle", () => S.open.endmoves = det.open); c.append(det);
+  }
+  const cb = s.carry || [];
+  if (cb.length) c.append(h("div", { class: "note" }, "Carry backups to Nextcloud (for a restore on a new host): " + cb.slice(-4).map(x => (x.ok ? "✓ " : "✕ ") + "segment " + x.seg + " " + tUTC(x.ts)).join(", ") + (cb.some(x => !x.ok) ? " — a failed one is listed under Problems" : "") + "."));
+  host.append(c);
+}
+
+/* ---------- filters ---------- */
+function renderFilters() {
+  const f = $("filters"); f.replaceChildren();
+  const group = (label, key, opts) => h("label", null, label, h("span", { class: "seg", role: "group" }, opts.map(([v, t]) => h("button", { "aria-pressed": String(S[key] === v), onclick: () => { S[key] = v; savePrefs(); renderAll(); } }, t))));
+  f.append(...[group("Horizontal axis", "x", [["runs", "Total runs"], ["time", "Wall-clock time"]]),
+    countedFrom() ? group("Segments", "segs", [["counted", countedFrom() + " and later (counted)"], ["all", "All (with restarts 0–" + (countedFrom() - 1) + ")"]]) : null,
+    h("label", null, "Smoothing of self-play curves", h("select", { onchange: e => { S.smooth = +e.target.value; savePrefs(); renderAll(); } },
+      [[1, "none"], [3, "3 updates"], [5, "5 updates"], [9, "9 updates"]].map(([v, t]) => h("option", { value: v, selected: S.smooth === v }, t)))),
+    h("label", null, "Lower levels", h("select", { onchange: e => { S.lower = e.target.value; savePrefs(); renderAll(); } },
+      [["grouped", "A9, A5–A8, A0–A4"], ["curr", "A5–A9, A0–A4 (curriculum groups)"], ["together", "A0–A9 together"]].concat([8, 7, 6, 5, 4, 3, 2, 1, 0].map(a => ["A" + a, "A9 and A" + a + " alone"])).map(([v, t]) => h("option", { value: v, selected: S.lower === v }, t))))].filter(Boolean));
+}
+
+/* ---------- evaluation ---------- */
+function renderEval() {
+  const d = S.data, host = $("eval"); host.replaceChildren();
+  const ci = d.chain_info || {};
+  host.append(h("h2", null, "Fixed-seed evaluation at A" + d.target_asc),
+    h("p", { class: "lead" }, "After every segment the agent plays the same " + ((d.config.env || {}).EVAL_COUNT || 150) + " seeds" + (ci.eval_seeds ? " (" + ci.eval_seeds + ")" : "") + " at ascension " + d.target_asc + " (greedy macro policy, search 64" +
+      (ci.eval_args ? "; actor options of the latest segment: " + ci.eval_args.replace(/research\/s3\/runs\//g, "") : "") + "). Source: curve.txt, eval_N.log" + (d.curriculum ? ", eval/seg_NNN/report.txt (chain hook)" : "") + ". With so few wins the interval is wide: read mean floor and acts cleared for the trend."));
+  renderLineage(host);
+  const evAll = d.eval.filter(e => segShown(e.seg)), ev = evAll.filter(e => e.e);
+  if (!evAll.length) { host.append(h("div", { class: "empty" }, d.have.curve ? "curve.txt has no evaluation line for the shown segments yet." : h("span", null, h("b", null, "No evaluation on the laptop yet. "), "The first one runs beside the next segment once a segment has ended (about 20–40 min), then a light sync brings curve.txt and eval/."))); return; }
+  if (!ev.length) { host.append(h("div", { class: "empty" }, "None of the evaluations of the shown segments wrote a summary line.")); }
+  const pt = (e, y, o) => Object.assign({ x: xOf({ runs: e.runs, ts: e.ts }), y, seg: e.seg, runs: e.runs, ts: e.ts }, o);
+  const g = h("div", { class: "grid three" }); host.append(g);
+  lineChart(g, { id: "ev-won", title: "Runs won", sub: "Share of the " + (ev.length ? ev[0].e.ok : 150) + " seeds won, with the 95% Wilson interval", yLabel: "runs won, %", yMin: 0, minSpan: 4, fmt: v => fp(v),
+    series: [{ name: "runs won", color: "var(--s1)", err: true, dots: true, pts: ev.map(e => pt(e, e.e.pct, { lo: e.e.lo, hi: e.e.hi, label: e.e.won + " of " + e.e.ok + " = " + fp(e.e.pct) + " (95% CI " + fx(e.e.lo) + "–" + fx(e.e.hi) + ")" })) }] });
+  lineChart(g, { id: "ev-floor", title: "Mean floor reached", sub: "A full run is about 50 floors; act 1 ends near floor 17, act 2 near floor 34", yLabel: "floor", fmt: v => fx(v),
+    series: [{ name: "mean floor", color: "var(--s1)", dots: true, pts: ev.map(e => pt(e, e.e.floor)) }] });
+  lineChart(g, { id: "ev-acts", title: "Acts cleared", sub: "Share of the evaluation runs that beat the act 1 boss / the act 2 boss", yLabel: "share of runs, %", yMin: 0, yMax: 100, fmt: v => fp(v, 0),
+    series: [{ name: "act 1 cleared", color: "var(--s1)", dots: true, pts: ev.map(e => pt(e, e.e.act1)) }, { name: "act 2 cleared", color: "var(--s2)", dots: true, pts: ev.map(e => pt(e, e.e.act2)) }] });
+  const c = card(host, "Evaluations", "One row per evaluated segment; fights and deaths from eval_N.log", true); c.style.marginTop = "12px";
+  const fw = (e, k) => e.detail && e.detail.fights && e.detail.fights[k] ? fp(e.detail.fights[k].won) : "–";
+  const E = (f, n) => ({ n, f: e => e.e ? f(e) : "–" });
+  c.append(h("div", { class: "scroll free" }, tbl([{ h: "after segment", f: e => e.seg, n: 1 }, { h: "total runs", f: e => fi(e.runs), n: 1 }, { h: "evaluated (UTC · local)", f: e => e.ts ? tUTC(e.ts) + " · " + tLoc(e.ts) : "–", nw: 1 },
+    { h: "won", ...E(e => e.e.won + " / " + e.e.ok, 1) }, { h: "95% interval", ...E(e => fx(e.e.lo) + "–" + fx(e.e.hi) + "%", 1) }, { h: "errors", ...E(e => e.e.errors, 1) }, { h: "mean floor", ...E(e => fx(e.e.floor), 1) },
+    { h: "act 1 cleared", ...E(e => fp(e.e.act1, 0), 1) }, { h: "act 2 cleared", ...E(e => fp(e.e.act2, 0), 1) }, { h: "hallway fights won", f: e => fw(e, "monster"), n: 1 }, { h: "elite fights won", f: e => fw(e, "elite"), n: 1 },
+    { h: "boss fights won", f: e => fw(e, "boss"), n: 1 },
+    { h: "most deaths at", f: e => !e.e ? "⚠ this evaluation wrote no summary line (stopped or failed): see Problems" : e.detail && e.detail.deaths ? e.detail.deaths.slice(0, 4).map(x => x[0].replace(/_/g, " ").toLowerCase() + " " + x[1]).join(", ") : "–", wrap: 1 }], evAll)));
+  const rp = evAll.filter(e => e.report);
+  if (rp.length) {
+    const c2 = card(host, "Evaluation report of the chain hook", "src/ic113/chain_stats.py eval on each evaluation’s runs and fights (eval/seg_NNN/report.txt): runs entering and winning each boss fight (A10 has two act-3 bosses), HP share and potions entering, combat stalemates by encounter, potion_mix decisions per run", true);
+    c2.style.marginTop = "12px";
+    const names = ["act-1 boss", "act-2 boss", "act-3 boss 1", "act-3 boss 2"];
+    const fun = (e, nm) => { const f = (e.report.funnel || []).find(x => x[0] === nm), q = (e.report.hp || []).find(x => x[0] === nm);
+      return f ? h("span", null, fi(f[1]) + " → " + fi(f[2]) + (f[1] ? " (" + fp(100 * f[2] / f[1], 0) + ")" : ""), q ? h("div", { class: "note", style: "margin:0" }, "HP " + fp(100 * q[1], 0) + " · potions " + fx(q[2], 2)) : null) : "–"; };
+    c2.append(h("div", { class: "scroll free" }, tbl([{ h: "after segment", f: e => e.seg, n: 1 }, { h: "runs won", f: e => e.report.head.replace(/^runs (\d+), won /, "").replace(/, errors.*$/, ""), nw: 1 }]
+      .concat(names.map(nm => ({ h: nm + ": entered → won", t: "Runs entering the fight → runs winning it; below: HP share and potions held entering it (means)", f: e => fun(e, nm), n: 1 })))
+      .concat([{ h: "stalemates", f: e => e.report.stale_n == null ? "–" : e.report.stale_n + (e.report.stale && Object.keys(e.report.stale).length ? ": " + Object.entries(e.report.stale).map(x => x[0] + " " + x[1]).join(", ") : ""), wrap: 1 },
+        { h: "potion_mix per run", f: e => e.report.potion_mix ? Object.entries(e.report.potion_mix).map(x => x[0].replace("potion_mix", "pm") + " " + fx(x[1], 2)).join(", ") : "–", wrap: 1 },
+        { h: "deaths", f: e => (e.report.deaths || "–").replace(/_/g, " ").toLowerCase(), wrap: 1 }]), rp)));
+  }
+}
+
+/* evaluation along the lineage: the chains this one continues (e.g. s3a to segment 49 -> s3c segment 0 -> s3v3) */
+function renderLineage(host) {
+  const L = S.data.lineage;
+  if (!L || L.chains.length < 2 || !L.points.length) return;
+  const lp = L.points, cols = ["var(--gray)", "var(--s2)", "var(--s1)", "var(--s3)", "var(--s4)", "var(--s5)"];
+  const cc = L.chains.map((c, i) => ({ ...c, color: i === L.chains.length - 1 ? "var(--s1)" : cols[i % cols.length], pts: lp.filter(p => p.chain === c.run) }));
+  const desc = L.chains.map((c, i) => c.run + (c.upto != null ? " to segment " + c.upto : "") + (c.evals ? "" : " (no evaluation on the laptop" + (c.have_curve ? "" : ": curve.txt missing, run a light sync") + ")")).join(" → ");
+  lineChart(host, { id: "ev-lineage", wide: true, height: 270, title: "Runs won at A" + S.data.target_asc + " along the lineage: " + L.chains.map(c => c.run).join(" → "),
+    sub: "Every fixed-seed evaluation of " + desc + ", with the 95% Wilson interval. Dashed lines: a chain starts from the weights of the segment before it. Horizontal axis: self-play runs added up over the chains (curve.txt counts runs from each chain’s own start). s3a’s early evaluations used 150 seeds, later ones 300.",
+    yLabel: "runs won, %", yMin: 0, minSpan: 4, fmt: v => fp(v), breakKey: "chain", xDom: [0, Math.max(...lp.map(p => p.cum)) * 1.01], xTick: fk,
+    xLabel: "self-play runs, cumulative over the chains",
+    marks: cc.slice(1).map(c => ({ x: c.offset, label: c.run + " (from " + c.parent[0] + " s" + c.parent[1] + ")" })),
+    series: cc.map(c => ({ name: c.run, color: c.color, err: true, dots: c.pts.length <= 12, width: c.run === S.data.run ? 2.5 : 1.5,
+      pts: c.pts.map(p => ({ x: p.cum, y: p.pct, lo: p.lo, hi: p.hi, chain: p.chain, seg: p.chain + " s" + p.seg, runs: p.cum, ts: p.ts,
+        head: p.chain + " segment " + p.seg + " · " + fi(p.runs) + " runs in " + p.chain + " (" + fk(p.cum) + " in all)" + (p.ts ? " · evaluated " + dUTC(p.ts).slice(5) + " " + tUTC(p.ts) : ""),
+        label: p.won + " of " + p.ok + " = " + fp(p.pct), extra: "95% CI " + fx(p.lo) + "–" + fx(p.hi) + ", floor " + fx(p.floor) + ", act 2 " + fp(p.act2, 0) })) })) });
+}
+
+/* ---------- ascension curriculum (s3ic) ---------- */
+const CG = [["a10", "A10"], ["a0_4", "A0–A4"], ["a5_9", "A5–A9"], ["all", "all levels"]];
+const kn = x => x && x[1] ? x[0] + " / " + fi(x[1]) + " = " + fp(100 * x[0] / x[1]) : "–";
+function curricRow(r) {      // numbers of one segment: the hook's reading, else the run records, else live (status.txt)
+  if (r.reading) return { src: "hook reading", a10: r.reading.a10, a0_4: r.reading.a0_4, a5_9: r.reading.a5_9, all: r.reading.all, errors: r.reading.errors, stalemates: r.reading.stalemates, stale_text: r.reading.stale_text, verdict: r.reading.verdict };
+  if (r.measured) return { src: "run records", ...r.measured };
+  return null;
+}
+function rateMeter(label, x, marks, max, note) {
+  const v = x && x[1] ? 100 * x[0] / x[1] : null;
+  return h("div", { class: "tile" }, h("div", { class: "l" }, label), h("div", { class: "v" }, v == null ? "–" : fp(v, 1), h("small", null, x && x[1] ? " " + fi(x[0]) + " of " + fi(x[1]) + " runs" : "")),
+    h("div", { class: "meter mk" }, h("i", { style: "width:" + Math.min(100, 100 * (v || 0) / max).toFixed(1) + "%" }),
+      marks.map(m => [h("b", { style: "left:" + (100 * m.v / max).toFixed(1) + "%", title: m.t }), h("span", { style: "left:" + (100 * m.v / max).toFixed(1) + "%" }, m.l)])),
+    h("div", { class: "d gap" }, note));
+}
+function renderCurriculum() {
+  const d = S.data, host = $("curric"); host.replaceChildren();
+  const C = d.curriculum; navShow("curric", !!C);
+  if (!C) return;
+  const th = C.thresholds, pct = v => fp(100 * v, 0), minRuns = fi(th.min_runs);
+  host.append(h("h2", null, "Ascension curriculum"),
+    h("p", { class: "lead" }, "Self-play runs are spread over ascension levels by stage. After each good segment the chain hook (src/ic113/s3ic_hook.sh) reads that segment’s self-play runs (perturbed starts left out, runs that ended in an error count as lost) and moves the stage up, never down: stage 2 when A10 won ≥ " + pct(th.t1_a10) + " or A0–A4 won ≥ " + pct(th.t1_low) +
+      ", stage 3 when A10 won ≥ " + pct(th.t2_a10) + "; a rate counts only over at least " + minRuns + " runs (CURRIC_* in config.env). Sources: curriculum_stage, supervisor.log “hook:” lines, curriculum.log, the segments’ run records, status.txt for the running segment."));
+  const tiles = h("div", { class: "tiles" }); host.append(tiles);
+  const st = C.stage, next = st === 1 ? "stage 2 when A10 ≥ " + pct(th.t1_a10) + " or A0–A4 ≥ " + pct(th.t1_low) + "; stage 3 when A10 ≥ " + pct(th.t2_a10) : st === 2 ? "stage 3 when A10 ≥ " + pct(th.t2_a10) : "last stage: the owner decides what follows";
+  tiles.append(h("div", { class: "tile" }, h("div", { class: "l" }, "Stage now (curriculum_stage)"), h("div", { class: "v" }, "Stage " + (st || "–")), h("div", { class: "d" }, (C.stages[st] || C.stage_file || "–") + ". Next: " + next + ".")));
+  // the latest finished segment with numbers, and the running segment (live)
+  const per = C.per_segment.filter(r => curricRow(r)), last = per[per.length - 1], lr = last ? curricRow(last) : null, L = C.live;
+  const marksA10 = [{ v: 100 * th.t1_a10, l: pct(th.t1_a10), t: "stage 2" }, { v: 100 * th.t2_a10, l: pct(th.t2_a10), t: "stage 3" }];
+  const maxA10 = Math.max(100 * th.t2_a10 * 1.4, ...[lr && lr.a10, L && L.a10].filter(x => x && x[1]).map(x => 100 * x[0] / x[1] * 1.1));
+  if (lr) {
+    tiles.append(rateMeter("A10 won, segment " + last.seg + " (" + lr.src + ")", lr.a10, marksA10, maxA10, (lr.a10 && lr.a10[1] < th.min_runs ? "fewer than " + minRuns + " runs: does not count. " : "") + "Marks: stage 2 / stage 3 thresholds."));
+    if (st < 2) tiles.append(rateMeter("A0–A4 won, segment " + last.seg + " (" + lr.src + ")", lr.a0_4, [{ v: 100 * th.t1_low, l: pct(th.t1_low), t: "stage 2" }], 100, (lr.a0_4 && lr.a0_4[1] < th.min_runs ? "fewer than " + minRuns + " runs: does not count. " : "") + "Mark: stage 2 threshold."));
+  }
+  if (L && (L.a10 || L.a0_4)) {
+    tiles.append(rateMeter("A10 won, running segment " + L.seg + " (live)", L.a10, marksA10, maxA10, "From status.txt’s per-directory block (error runs left out there, so slightly higher than the hook will count)."));
+    if (st < 2) tiles.append(rateMeter("A0–A4 won, running segment " + L.seg + " (live)", L.a0_4, [{ v: 100 * th.t1_low, l: pct(th.t1_low), t: "stage 2" }], 100, "From the " + L.updates + " macro-trainer update(s) of this segment seen in status.txt (by_ascension; perturbed starts left out)."));
+  }
+  // rates per segment against the thresholds
+  const rows = C.per_segment.filter(r => segShown(r.seg)), g = h("div", { class: "grid", style: "margin-top:12px" }); host.append(g);
+  const pts = key => rows.map(r => { const x = curricRow(r); const v = x && x[key]; return v && v[1] ? { x: r.seg, y: 100 * v[0] / v[1], seg: r.seg, label: kn(v), extra: x.src } : { x: null }; })
+    .concat(L && L[key] && L[key][1] && segShown(L.seg) ? [{ x: L.seg, y: 100 * L[key][0] / L[key][1], seg: L.seg, live: true, label: kn(L[key]), extra: "live" }] : []);
+  lineChart(g, { id: "cu-rates", title: "Self-play win rate by curriculum group, per segment", sub: "As the hook counts them (hollow point: the running segment, live). Horizontal lines: the thresholds.", yLabel: "runs won, %", xKind: "cat", yMin: 0, fmt: v => fp(v),
+    refs: [{ y: 100 * th.t1_a10, label: "A10 → stage 2" }, { y: 100 * th.t2_a10, label: "A10 → stage 3" }].concat(st < 2 ? [{ y: 100 * th.t1_low, label: "A0–A4 → stage 2" }] : []),
+    series: [["a10", "A10", "var(--s1)"], ["a5_9", "A5–A9", "var(--s2)"], ["a0_4", "A0–A4", "var(--s4)"]].map(([k, n, c]) => ({ name: n, color: c, dots: true, pts: pts(k) })) });
+  lineChart(g, { id: "cu-stage", title: "Stage used by each segment", sub: "From the hook’s “segment N: stage S” lines in supervisor.log", yLabel: "stage", xKind: "cat", yMin: 0, yMax: 3, fmt: v => fx(v, 0),
+    series: [{ name: "stage", color: "var(--s1)", dots: true, pts: rows.filter(r => r.stage != null).map(r => ({ x: r.seg, y: r.stage, seg: r.seg, label: "stage " + r.stage, extra: "A10 share " + (r.asc_mix != null ? fp(100 * r.asc_mix, 0) : "–") + ", below A10: " + (r.asc_weights || "–") })) }] });
+  const c = card(host, "Curriculum per segment", "Stage and settings each segment ran with, and the reading of its runs (the hook’s, from curriculum.log / supervisor.log; before it exists, counted here from the run records the same way)", true); c.style.marginTop = "12px";
+  c.append(h("div", { class: "scroll free" }, tbl([{ h: "segment", f: r => "s" + r.seg }, { h: "stage", f: r => r.stage, n: 1 }, { h: "A10 share", f: r => r.asc_mix != null ? fp(100 * r.asc_mix, 0) : "–", n: 1 },
+    { h: "below A10", f: r => r.asc_weights ? r.asc_weights.replace("uniform", "A0–A9 uniform").replace("0,0,0,0,0,1,1,1,1,1", "A5–A9 uniform").replace("0,0,0,0,0,0,0,0,3.181,4.057", "A8 : A9 = 3.18 : 4.06") : "–" },
+    ...CG.map(([k, n]) => ({ h: n + " won", f: r => { const x = curricRow(r); return x ? kn(x[k]) : r.result === "running" && L && L[k] ? kn(L[k]) + " (live)" : "–"; }, n: 1 })),
+    { h: "errors", f: r => { const x = curricRow(r); return x && x.errors != null ? fi(x.errors) : "–"; }, n: 1 },
+    { h: "stalemates", f: r => { const x = curricRow(r); return x && x.stalemates != null ? fi(x.stalemates) + (x.stale_text ? " (" + x.stale_text + ")" : "") : "–"; }, wrap: 1 },
+    { h: "hook verdict", f: r => r.reading ? r.reading.verdict : r.measured ? "(no reading yet; numbers from the run records)" : r.result === "running" ? "running" : r.result === "discarded" ? "discarded after an interruption: not read (the next segment ran with the same settings)" : "–", wrap: 1 }], rows.map(r => ({ ...r, _dim: r.result === "discarded" })))));
+  if (C.hook_status) c.append(h("div", { class: "note" }, "hook_status.txt: “" + C.hook_status.replace(/research\/s3\/runs\//g, "") + "”"));
+}
+
+/* ---------- results by ascension ---------- */
+function ascGroups() {
+  const T = S.data.target_asc, lv = (a, b) => { const o = []; for (let x = a; x <= b; x++) o.push(String(x)); return o; };
+  return [{ name: "A" + T, color: "var(--s1)", lv: [String(T)] }, { name: "A5–A" + (T - 1), color: "var(--s2)", lv: lv(5, T - 1) }, { name: "A0–A4", color: "var(--s4)", lv: lv(0, 4) }];
+}
+function renderAsc() {
+  const d = S.data, host = $("asc"); host.replaceChildren();
+  const T = d.target_asc, rows = macroRows(), k = S.smooth, segs = segList().filter(s => s.runs);
+  const levels = new Set(); rows.forEach(r => Object.keys(r.by || {}).forEach(a => levels.add(a))); segs.forEach(s => Object.keys(s.runs.asc || {}).forEach(a => levels.add(a)));
+  navShow("asc", levels.size > 1);
+  if (levels.size <= 1) return;
+  host.append(h("h2", null, "Results by ascension level"),
+    h("p", { class: "lead" }, "Self-play mixes ascension levels" + (d.curriculum ? " (the curriculum sets the mix)" : "") + ", so the overall win rate moves with the mix. Per macro update: by_ascension of macro_train_log.jsonl (perturbed starts left out). Per segment: the run records (error runs and perturbed starts left out). Acts cleared per run: 0 to 3, a won run counts 3."));
+  const G = ascGroups(), g = h("div", { class: "grid" }); host.append(g);
+  lineChart(g, { id: "as-won", title: "Win rate by ascension group, per macro update", sub: "Weighted by runs" + (k > 1 ? "; " + k + "-update moving average" : ""), yLabel: "runs won, %", yMin: 0, fmt: v => fp(v),
+    series: G.map(x => ({ name: x.name, color: x.color, pts: smooth(levelSeries(rows, x.lv, 1, 100), k) })) });
+  lineChart(g, { id: "as-acts", title: "Acts cleared by ascension group, per macro update", sub: "Mean acts cleared per run (0 to 3)", yLabel: "acts cleared", yMin: 0, fmt: v => fx(v, 2),
+    series: G.map(x => ({ name: x.name, color: x.color, pts: smooth(levelSeries(rows, x.lv, 2, 1), k) })) });
+  const share = x => rows.map(r => { if (!r.by || r.live) return { x: null }; /* live lines lose their last levels: status.txt cuts them */ let n = 0, t = 0; for (const [a, v] of Object.entries(r.by)) { if (!v || !v[0]) continue; t += v[0]; if (x.lv.includes(a)) n += v[0]; } return t ? { x: xOf(r), y: 100 * n / t, seg: r.seg, runs: r.runs, ts: r.ts, live: r.live, extra: fi(n) + " of " + fi(t) + " runs" } : { x: null }; }).filter(p => p.x != null);
+  lineChart(g, { id: "as-share", title: "Share of runs by ascension group, per macro update", sub: "The mix the actors played (perturbed starts left out)", yLabel: "share of runs, %", yMin: 0, yMax: 100, fmt: v => fp(v, 0),
+    series: G.map(x => ({ name: x.name, color: x.color, pts: share(x) })) });
+  lineChart(g, { id: "as-floor", title: "Mean floor by ascension group, per macro update", sub: "Floors per run", yLabel: "floor", fmt: v => fx(v),
+    series: G.map(x => ({ name: x.name, color: x.color, pts: smooth(levelSeries(rows, x.lv, 3, 1), k) })) });
+  // latest segment with macro rows, per level
+  const lastSeg = rows.filter(r => r.by && !r.live).map(r => r.seg).pop();
+  if (lastSeg != null) {
+    const agg = {}; let nu = 0;
+    for (const r of rows.filter(r => r.seg === lastSeg && r.by && !r.live)) { nu++; for (const [a, v] of Object.entries(r.by)) { if (!v || !v[0]) continue; const o = agg[a] || (agg[a] = [0, 0, 0, 0]); o[0] += v[0]; o[1] += v[0] * (v[1] || 0); o[2] += v[0] * (v[2] || 0); o[3] += v[0] * (v[3] || 0); } }
+    const tot = Object.values(agg).reduce((x, o) => x + o[0], 0), lv = Object.keys(agg).sort((a, b) => a - b);
+    const c = card(host, "Segment " + lastSeg + " by ascension level (macro-trainer updates)", nu + " update(s) of segment " + lastSeg + ", " + fi(tot) + " runs", true); c.style.marginTop = "12px";
+    c.append(h("div", { class: "scroll free" }, tbl([{ h: "level", f: a => "A" + a }, { h: "runs", f: a => fi(agg[a][0]), n: 1 }, { h: "share", f: a => fp(100 * agg[a][0] / tot), n: 1 }, { h: "won", f: a => fp(100 * agg[a][1] / agg[a][0]), n: 1 },
+      { h: "acts cleared", f: a => fx(agg[a][2] / agg[a][0], 2), n: 1 }, { h: "mean floor", f: a => fx(agg[a][3] / agg[a][0]), n: 1 }], lv)));
+  }
+  // per segment and level, from the run records
+  const c = card(host, "By ascension level and segment (run records)", "Darker = higher. Hover a cell for the counts.", true); c.style.marginTop = "12px";
+  const M = { won: ["won", v => v[1] / v[0], v => fp(100 * v[1] / v[0])], acts: ["acts cleared", v => (v[1] + v[2] + v[3]) / v[0], v => fx((v[1] + v[2] + v[3]) / v[0], 2)],
+    act1: ["act 1 cleared", v => v[2] / v[0], v => fp(100 * v[2] / v[0], 0)], act2: ["act 2 cleared", v => v[3] / v[0], v => fp(100 * v[3] / v[0], 0)], floor: ["mean floor", v => v[4] / v[0], v => fx(v[4] / v[0])],
+    share: ["share of runs", (v, n) => v[0] / n, (v, n) => fp(100 * v[0] / n)] };
+  if (!M[S.ascMetric]) S.ascMetric = "won";
+  c.append(h("div", { class: "seg", style: "margin:4px 0 8px" }, Object.entries(M).map(([key, m]) => h("button", { "aria-pressed": String(S.ascMetric === key), onclick: () => { S.ascMetric = key; savePrefs(); sec(renderAsc); } }, m[0]))));
+  if (!segs.length) c.append(h("div", { class: "empty" }, h("b", null, "No run records on the laptop. "), "They come with a segment’s meta/ when it ends. Run a light sync."));
+  else {
+    const lv = []; for (let a = 0; a <= T; a++) lv.push(String(a));
+    const m = M[S.ascMetric], nOf = s => s.runs.g.t.n + s.runs.g.l.n;
+    let mx = 0; for (const s of segs) for (const a of lv) { const v = s.runs.asc[a]; if (v && v[0]) mx = Math.max(mx, m[1](v, nOf(s))); }
+    c.append(h("div", { class: "scroll free" }, h("table", null, h("thead", null, h("tr", null, h("th", null, "segment"), h("th", { class: "n" }, "runs"), lv.map(a => h("th", { class: "n" }, "A" + a)))),
+      h("tbody", null, segs.map(s => h("tr", null, h("td", null, "s" + s.seg), h("td", { class: "n" }, fi(nOf(s))), lv.map(a => { const v = s.runs.asc[a]; const td = heatCell(v && v[0] ? m[1](v, nOf(s)) : null, mx, v && v[0] ? m[2](v, nOf(s)) : "–");
+        if (v) td.title = "A" + a + ": " + fi(v[0]) + " runs, " + fi(v[1]) + " won, act 1 cleared " + fi(v[2]) + ", act 2 cleared " + fi(v[3]) + (s.runs.asc_err && s.runs.asc_err[a] ? "; " + s.runs.asc_err[a] + " error runs left out" : ""); return td; })))))));
+  }
+}
+
+/* ---------- mixed potion valuation (s3ic potion_mix) ---------- */
+const PM_KEYS = ["potion_mix", "potion_mix_swap", "potion_mix_extra", "potion_mix_extra_swap", "potion_mix_nomean", "fake_merchant", "fake_merchant_buy", "fake_merchant_foul"];
+function divCell(v, mx, text) {
+  const a = v == null || !mx ? 0 : Math.min(1, Math.abs(v) / mx) * 55;
+  return h("td", { class: "heat", style: "background: color-mix(in srgb, " + (v < 0 ? "var(--s2)" : "var(--seq)") + " " + a.toFixed(0) + "%, transparent)" }, text);
+}
+function renderPotions() {
+  const d = S.data, host = $("potions"); host.replaceChildren();
+  const V = (d.vmix || []).filter(v => segShown(v.seg)), segs = segList();
+  const pmSegs = segs.filter(s => s.potion_mix || (s.runs && s.runs.look && PM_KEYS.some(k => s.runs.look[k])));
+  const on = (d.vmix || []).length || pmSegs.length; navShow("potions", on);
+  if (!on) return;
+  host.append(h("h2", null, "Mixed potion valuation (potion_mix)"),
+    h("p", { class: "lead" }, "With a full belt and a potion reward, each held kind and the offered one get V_mix = Vbar_act(kind) + 0.2 · (dV − Vbar_act), where dV = run value with only that potion minus run value with an empty belt; the lowest is dropped if the offered one scores higher. Vbar per act comes from the previous segment’s runs (up to 500 states per act), scored with the macro the segment starts from: vmix/vbar_sNNN.json is used by segment NNN. An act with fewer than 20 states, and segment 0, have no Vbar (state term alone). Values below are in points of run value (× 100)."));
+  const cv = card(host, "Vbar files", "One row per file; per act: states sampled, V(empty belt), kinds, spread of Vbar over kinds (standard deviation), highest and lowest kinds", true);
+  if (!V.length) cv.append(h("div", { class: "empty" }, "No vmix/vbar_sNNN.json on the laptop. Run a light sync."));
+  else {
+    const acts = ["1", "2", "3"], top = (a, n, lo) => Object.entries(a.values).sort((x, y) => lo ? x[1] - y[1] : y[1] - x[1]).slice(0, n).map(x => x[0].toLowerCase().replace(/_/g, " ") + " " + (x[1] >= 0 ? "+" : "") + fx(100 * x[1], 1)).join(", ");
+    cv.append(h("div", { class: "scroll free" }, tbl([{ h: "for segment", f: v => "s" + v.seg }, { h: "made (UTC)", f: v => v.made ? v.made.replace("T", " ").replace("Z", "") : "–", nw: 1 }, { h: "from", f: v => v.source || v.error || "–", wrap: 1 }]
+      .concat(acts.map(a => ({ h: "act " + a, f: v => { const x = v.acts[a]; return x ? fi(x.n) + " states · V(empty) " + fp(100 * x.v_empty) + " · " + x.kinds + " kinds · sd " + fx(100 * x.sd, 2) : "no means"; }, wrap: 1 })))
+      .concat([{ h: "highest / lowest (act 1)", f: v => v.acts["1"] ? top(v.acts["1"], 3) + " / " + top(v.acts["1"], 2, true) : "–", wrap: 1 }]), V)));
+    const withA = V.filter(v => Object.keys(v.acts).length);
+    if (withA.length) {
+      const g = h("div", { class: "grid", style: "margin-top:12px" }); host.append(g);
+      const cols = { "1": "var(--s1)", "2": "var(--s2)", "3": "var(--s3)" };
+      lineChart(g, { id: "vm-empty", title: "Run value with an empty belt, per act", sub: "Mean V(empty belt) over the sampled states of each act", yLabel: "run value, %", xKind: "cat", fmt: v => fp(v),
+        series: acts.map(a => ({ name: "act " + a, color: cols[a], dots: true, pts: withA.filter(v => v.acts[a]).map(v => ({ x: v.seg, y: 100 * v.acts[a].v_empty, seg: v.seg, extra: fi(v.acts[a].n) + " states" })) })) });
+      lineChart(g, { id: "vm-sd", title: "Spread of Vbar over potion kinds, per act", sub: "Standard deviation of Vbar_act over kinds: how much the kind matters to the run value", yLabel: "points", xKind: "cat", yMin: 0, fmt: v => fx(v, 2),
+        series: acts.map(a => ({ name: "act " + a, color: cols[a], dots: true, pts: withA.filter(v => v.acts[a]).map(v => ({ x: v.seg, y: 100 * v.acts[a].sd, seg: v.seg, extra: v.acts[a].kinds + " kinds, mean " + fx(100 * v.acts[a].mean, 2) })) })) });
+      const ck = card(host, "Vbar by potion kind and segment", "Points of run value; blue = better than an empty belt, orange = worse; sorted by the latest file", true); ck.style.marginTop = "12px";
+      const actsHave = acts.filter(a => withA.some(v => v.acts[a])); if (!actsHave.includes(S.vAct)) S.vAct = actsHave[0];
+      ck.append(h("div", { class: "seg", style: "margin:4px 0 8px" }, actsHave.map(a => h("button", { "aria-pressed": String(S.vAct === a), onclick: () => { S.vAct = a; savePrefs(); sec(renderPotions); } }, "act " + a))));
+      const cs = withA.filter(v => v.acts[S.vAct]), lastV = cs[cs.length - 1].acts[S.vAct].values;
+      const kinds = [...new Set(cs.flatMap(v => Object.keys(v.acts[S.vAct].values)))].sort((a, b) => (lastV[b] ?? -1e9) - (lastV[a] ?? -1e9));
+      let mx = 0; for (const v of cs) for (const x of Object.values(v.acts[S.vAct].values)) mx = Math.max(mx, Math.abs(x));
+      ck.append(h("div", { class: "scroll", style: "max-height:520px" }, h("table", null, h("thead", null, h("tr", null, h("th", null, "potion"), cs.map(v => h("th", { class: "n" }, "s" + v.seg)))),
+        h("tbody", null, kinds.map(kd => h("tr", null, h("td", null, kd.toLowerCase().replace(/_/g, " ")), cs.map(v => { const x = v.acts[S.vAct].values[kd]; return x == null ? h("td", { class: "n" }, "–") : divCell(x, mx, (x >= 0 ? "+" : "") + fx(100 * x, 2)); })))))));
+    }
+  }
+  const cc = card(host, "potion_mix decisions per segment", "Actors: the last progress line of each actor (decisions and swaps, reward + extra potion rewards) and the end-of-segment lines (kinds scored without Vbar, mean |dV − Vbar|). Run records: look counters per counted run (perturbed and error runs left out).", true); cc.style.marginTop = "12px";
+  if (!pmSegs.length) cc.append(h("div", { class: "empty" }, "No actor logs or run records with potion_mix counters on the laptop yet (they come with a segment’s meta/ when it ends)."));
+  else {
+    const per = (s, k) => s.runs && s.runs.look_runs ? fx((s.runs.look[k] || 0) / s.runs.look_runs, 3) : "–";
+    cc.append(h("div", { class: "scroll free" }, tbl([{ h: "segment", f: s => "s" + s.seg }, { h: "runs", f: s => fi(s.runs_total), n: 1 },
+      { h: "decisions (reward + extra)", f: s => s.potion_mix ? fi(s.potion_mix.decisions[0]) + " + " + fi(s.potion_mix.decisions[1]) : "–", n: 1 },
+      { h: "swaps (reward + extra)", f: s => s.potion_mix ? fi(s.potion_mix.swaps[0]) + " + " + fi(s.potion_mix.swaps[1]) : "–", n: 1 },
+      { h: "swap share", f: s => { const p = s.potion_mix; const n = p ? p.decisions[0] + p.decisions[1] : 0; return n ? fp(100 * (p.swaps[0] + p.swaps[1]) / n) : "–"; }, n: 1 },
+      { h: "kinds scored without Vbar", f: s => { const e = s.potion_mix && s.potion_mix.end.reward; return e && e.kinds ? fi(e.nomean) + " of " + fi(e.kinds) : "–"; }, n: 1 },
+      { h: "mean |dV − Vbar|", f: s => { const e = s.potion_mix && s.potion_mix.end.reward; return e && e.dev != null ? fx(100 * e.dev, 2) + " pts" : "–"; }, n: 1 }]
+      .concat(PM_KEYS.filter(k => pmSegs.some(s => s.runs && s.runs.look && s.runs.look[k])).map(k => ({ h: k.replace(/_/g, " ") + " / run", f: s => per(s, k), n: 1 }))), pmSegs)));
+  }
+}
+
+/* ---------- self-play ---------- */
+function macroRows() { return S.data.macro.filter(r => segShown(r.seg)); }
+function smooth(pts, k) {
+  if (k <= 1) return pts;
+  const half = Math.floor(k / 2), out = [];
+  for (let i = 0; i < pts.length; i++) {
+    const cf = countedFrom(); let sw = 0, sy = 0; const gi = pts[i].seg < cf ? pts[i].seg : 1e9;
+    for (let j = Math.max(0, i - half); j <= Math.min(pts.length - 1, i + half); j++) {
+      if ((pts[j].seg < cf ? pts[j].seg : 1e9) !== gi || pts[j].y == null) continue;
+      const w = pts[j].w == null ? 1 : pts[j].w; sw += w; sy += w * pts[j].y;
+    }
+    out.push(sw > 0 ? { ...pts[i], y: sy / sw } : pts[i]);
+  }
+  return out;
+}
+function levelSeries(rows, levels, idx, scale) {      // weighted mean over ascension levels; idx: 1 won, 2 acts cleared, 3 floors
+  return rows.map(r => {
+    if (!r.by) return { x: null };
+    let n = 0, s = 0; for (const a of levels) { const v = r.by[a]; if (v && v[0] && v[idx] != null) { n += v[0]; s += v[0] * v[idx]; } }
+    return n ? { x: xOf(r), y: scale * s / n, w: n, seg: r.seg, runs: r.runs, ts: r.ts, live: r.live, extra: fi(n) + " runs" } : { x: null };
+  }).filter(p => p.x != null);
+}
+function lowerGroups() {
+  const T = S.data.target_asc, below = []; for (let a = 0; a < T; a++) below.push(String(a));
+  const top = String(T - 1);
+  if (S.lower === "grouped") return [{ name: "A" + top, color: "var(--s2)", lv: [top] }, { name: "A5–A" + (T - 2), color: "var(--s3)", lv: below.filter(a => +a >= 5 && +a < T - 1) }, { name: "A0–A4", color: "var(--s4)", lv: below.filter(a => +a <= 4) }];
+  if (S.lower === "together") return [{ name: "A0–A" + top, color: "var(--s5)", lv: below }];
+  if (S.lower === "curr") return [{ name: "A5–A" + top, color: "var(--s2)", lv: below.filter(a => +a >= 5) }, { name: "A0–A4", color: "var(--s4)", lv: below.filter(a => +a <= 4) }];
+  return [{ name: "A" + top, color: "var(--s2)", lv: [top] }, { name: S.lower, color: "var(--s6)", lv: [S.lower.slice(1)] }];
+}
+function ascMixText(rows, T) {        // the A-target share of the latest update with by_ascension
+  const r = rows.filter(x => x.by && !x.live).pop(), C = S.data.curriculum, cs = C && C.per_segment.filter(x => x.asc_mix != null).pop();
+  if (!r) return cs ? "Curriculum stage " + cs.stage + " (segment " + cs.seg + "): " + fp(100 * cs.asc_mix, 0) + " of the runs at A" + T + ", the rest " + (C.stages[cs.stage] || "").replace(/^.*?, the rest /, "") + "." : "Part of the runs are at A" + T + ", the rest at lower levels.";
+  let n = 0, t = 0; for (const [a, v] of Object.entries(r.by)) { if (!v || !v[0]) continue; t += v[0]; if (a === String(T)) n += v[0]; }
+  const lv = Object.keys(r.by).filter(a => a !== String(T)).sort((a, b) => a - b);
+  return t ? "In the latest update " + fp(100 * n / t, 0) + " of the runs are at A" + T + ", the rest at " + (lv.length ? "A" + lv[0] + "–A" + lv[lv.length - 1] : "–") + " (about " + fi((t - n) / Math.max(1, lv.length)) + " runs per lower level and update)." : "";
+}
+function renderSelfplay() {
+  const d = S.data, host = $("selfplay"); host.replaceChildren();
+  const T = d.target_asc, rows = macroRows(), k = S.smooth;
+  host.append(h("h2", null, "Self-play learning curves"),
+    h("p", { class: "lead" }, "One point per macro-trainer update (about " + fi(+((d.chain_info || {}).runs_per_iter || 1024)) + " finished runs), as logged in macro_train_log.jsonl; these runs sample the policy and include the 10% with perturbed fight starts. " + (k > 1 ? "Lines are a " + k + "-update moving average weighted by runs. " : "") +
+      ascMixText(rows, T) + " Single levels are noisy; “Results by ascension level” above has the groups side by side."));
+  if (!rows.length) { host.append(h("div", { class: "empty" }, h("b", null, "No macro-trainer log on the laptop. "), "It is uploaded with a segment’s meta/ when the segment ends. Run a light sync.")); return; }
+  const missing = segList().filter(s => !s.macro_updates && s.start != null && s.result !== "discarded");
+  if (missing.length) host.append(h("div", { class: "note", style: "margin-bottom:8px" }, "No macro log on the laptop for segment " + missing.map(s => s.seg).join(", ") + " (" + missing.map(s => s.result === "running" ? "segment " + s.seg + " is still running: its log arrives when it ends" : "segment " + s.seg + ": " + (s.missing[0] || "not synced")).join("; ") + ")." +
+    (d.live_macro_points ? " Hollow points are the " + d.live_macro_points + " update(s) seen in status.txt so far (overall figures only; one is added per sync)." : "")));
+  const top = (key, scale) => rows.filter(r => r[key] != null).map(r => ({ x: xOf(r), y: scale * r[key], w: r.new_runs || 1, seg: r.seg, runs: r.runs, ts: r.ts, live: r.live }));
+  const lg = lowerGroups(), g = h("div", { class: "grid" }); host.append(g);
+  lineChart(g, { id: "sp-win-t", title: "Win rate at A" + T + " (target level)", sub: "Self-play runs at A" + T + " won, own scale", yLabel: "runs won, %", yMin: 0, minSpan: 1, fmt: v => fp(v, 2),
+    series: [{ name: "A" + T, color: "var(--s1)", pts: smooth(levelSeries(rows, [String(T)], 1, 100), k) }] });
+  lineChart(g, { id: "sp-win-l", title: "Win rate at the lower levels and overall", sub: "Overall = all runs of the update (A" + T + " and lower levels mixed)", yLabel: "runs won, %", yMin: 0, fmt: v => fp(v),
+    series: lg.map(x => ({ name: x.name, color: x.color, pts: smooth(levelSeries(rows, x.lv, 1, 100), k) })).concat([{ name: "overall", color: "var(--gray)", pts: smooth(top("win_rate", 100), k) }]) });
+  lineChart(g, { id: "sp-acts", title: "Acts cleared per run", sub: "Mean number of act bosses beaten (0 to 3; a won run counts 3)", yLabel: "acts cleared", yMin: 0, fmt: v => fx(v, 2),
+    series: [{ name: "A" + T, color: "var(--s1)", pts: smooth(levelSeries(rows, [String(T)], 2, 1), k) }].concat(lg.map(x => ({ name: x.name, color: x.color, pts: smooth(levelSeries(rows, x.lv, 2, 1), k) }))) });
+  lineChart(g, { id: "sp-actshare", title: "Share of runs clearing act 1 and act 2, all levels", sub: "act1_cleared and acts_cleared_2plus of each update", yLabel: "share of runs, %", yMin: 0, yMax: 100, fmt: v => fp(v),
+    series: [{ name: "act 1 cleared", color: "var(--s1)", pts: smooth(top("act1_cleared", 100), k) }, { name: "act 2 cleared", color: "var(--s2)", pts: smooth(top("acts_cleared_2plus", 100), k) }] });
+  lineChart(g, { id: "sp-floor", title: "Mean floor reached", sub: "Floors per run", yLabel: "floor", fmt: v => fx(v),
+    series: [{ name: "A" + T, color: "var(--s1)", pts: smooth(levelSeries(rows, [String(T)], 3, 1), k) }].concat(lg.map(x => ({ name: x.name, color: x.color, pts: smooth(levelSeries(rows, x.lv, 3, 1), k) }))).concat([{ name: "overall", color: "var(--gray)", pts: smooth(top("mean_floors", 1), k) }]) });
+}
+
+/* ---------- deaths and fights ---------- */
+function sumEnc(segs, g, kind) {
+  const out = {};
+  for (const s of segs) for (const [name, v] of Object.entries((s.fights.g[g] || {}).enc || {})) {
+    if (v[0] !== kind) continue;
+    const o = out[name] || (out[name] = [0, 0, 0, 0, 0, 0, 0]); for (let j = 1; j < 8; j++) o[j - 1] += v[j];
+  }
+  return out;      // name -> [fights, won, hp share sum, potions, turns, floor sum, hp lost sum]
+}
+function renderDeaths() {
+  const d = S.data, host = $("deaths"); host.replaceChildren();
+  const T = d.target_asc, segs = segList().filter(s => s.runs);
+  host.append(h("h2", null, "Where runs die and how fights go"),
+    h("p", { class: "lead" }, "From the run records of each segment (runs with errors or perturbed fight starts left out, as in diag_runs.py). The per-boss table needs the fight records, which only a full sync downloads."));
+  if (!segs.length) { host.append(h("div", { class: "empty" }, h("b", null, "No run records on the laptop. "), "They are uploaded with a segment’s meta/ when it ends. Run a light sync.")); return; }
+  const parts = [{ name: "died in act 1", color: "var(--o1)" }, { name: "died in act 2", color: "var(--o2)" }, { name: "died in act 3", color: "var(--o3)" }, { name: "won", color: "var(--o4)" }];
+  const g1 = h("div", { class: "grid" }); host.append(g1);
+  for (const [g, nm] of [["t", "A" + T], ["l", "lower levels (A0–A" + (T - 1) + ")"]]) {
+    const ss = segs.filter(s => s.runs.g[g].n);
+    stackChart(g1, { id: "die-" + g, title: "How far runs get — " + nm, sub: "Share of the segment’s runs by the act they died in", cats: ss.map(s => ({ k: s.seg, label: "s" + s.seg, n: s.runs.g[g].n })), parts,
+      values: ss.map(s => { const G = s.runs.g[g], dd = a => ["hallway", "elite", "boss", "none"].reduce((x, k) => x + (G.deaths[a + "|" + k] || 0), 0); return [dd(1) / G.n, dd(2) / G.n, dd(3) / G.n, G.won / G.n]; }) });
+  }
+  // heat table: deaths by act and room type
+  const c = card(host, "Deaths by act and room type", "Share of the segment’s runs that ended there; “other” = died outside a fight (events). Darker = more runs.", true); c.style.marginTop = "12px";
+  c.append(h("div", { class: "seg", style: "margin:4px 0 8px" }, [["t", "A" + T], ["l", "Lower levels"]].map(([v, t]) => h("button", { "aria-pressed": String(S.heatGroup === v), onclick: () => { S.heatGroup = v; savePrefs(); sec(renderDeaths); } }, t))));
+  const kinds = [["hallway", "hallway"], ["elite", "elite"], ["boss", "boss"], ["none", "other"]], G = S.heatGroup;
+  let mx = 0; for (const s of segs) for (const v of Object.values(s.runs.g[G].deaths)) mx = Math.max(mx, v / (s.runs.g[G].n || 1));
+  c.append(h("div", { class: "scroll" }, h("table", null,
+    h("thead", null, h("tr", null, h("th", { rowspan: 2 }, "segment"), h("th", { rowspan: 2, class: "n" }, "runs"), [1, 2, 3].map(a => h("th", { colspan: 4, class: "grp" }, "died in act " + a)), h("th", { rowspan: 2, class: "n" }, "won"), h("th", { rowspan: 2, class: "n" }, "mean floor")),
+      h("tr", null, [1, 2, 3].flatMap(a => kinds.map(k => h("th", { class: "n" }, k[1]))))),
+    h("tbody", null, segs.filter(s => s.runs.g[G].n).map(s => { const R = s.runs.g[G]; return h("tr", null, h("td", null, "s" + s.seg), h("td", { class: "n" }, fi(R.n)),
+      [1, 2, 3].flatMap(a => kinds.map(k => { const v = (R.deaths[a + "|" + k[0]] || 0) / R.n; const td = heatCell(v, mx, fp(100 * v)); td.title = fi(R.deaths[a + "|" + k[0]] || 0) + " runs"; return td; })),
+      h("td", { class: "n" }, fp(100 * R.won / R.n, 2)), h("td", { class: "n" }, fx(R.floors / R.n))); })))));
+  // fight win rate by room type per segment (derived from run records)
+  const g2 = h("div", { class: "grid", style: "margin-top:12px" }); host.append(g2);
+  for (const [g, nm] of [["t", "A" + T], ["l", "lower levels"]]) {
+    const ss = segs.filter(s => s.runs.g[g].n && s.runs.g[g].fights);
+    const rate = (s, kind) => { const R = s.runs.g[g], n = kind === "boss" ? R.bosses : kind === "elite" ? R.elites : R.fights - R.elites - R.bosses, lost = R.lost[kind] || 0; return n ? { y: 100 * (n - lost) / n, extra: fi(n) + " fights" } : { y: null }; };
+    lineChart(g2, { id: "fw-" + g, title: "Fights won by room type — " + nm, sub: "Per segment, from the run records: fights of that type minus runs that died in one", yLabel: "fights won, %", xKind: "cat", fmt: v => fp(v), yMax: 100,
+      series: [["hallway", "hallway", "var(--s1)"], ["elite", "elite", "var(--s2)"], ["boss", "boss", "var(--s3)"]].map(([k, name, color]) => ({ name, color, dots: true, pts: ss.map(s => ({ x: s.seg, seg: s.seg, ...rate(s, k) })) })) });
+  }
+  // per-boss table
+  const fsegs = segList().filter(s => s.fights && s.fights.files);
+  const bc = card(host, "Boss and elite fights by encounter, A" + T + " against the lower levels", "", true); bc.style.marginTop = "12px";
+  if (!fsegs.length) {
+    bc.append(h("div", { class: "empty" }, h("b", null, "Fight records are not on the laptop. "), "Fights per encounter, share won and HP at the start come from <segment>/meta/fights/*.jsonl, which only “Sync full” downloads (about 100 MiB per finished segment). Shown instead, from the run records: how many runs each boss ended."));
+    const killed = {}; for (const s of segs) for (const g of ["t", "l"]) for (const [k, v] of Object.entries(s.runs.g[g].killed || {})) { (killed[k] = killed[k] || { t: 0, l: 0 })[g] += v; }
+    const nT = segs.reduce((a, s) => a + s.runs.g.t.n, 0), nL = segs.reduce((a, s) => a + s.runs.g.l.n, 0);
+    const rows = Object.entries(killed).sort((a, b) => b[1].t - a[1].t);
+    bc.append(h("div", { class: "scroll" }, tbl([{ h: "boss", f: r => r[0].replace(/_BOSS$/, "").replace(/_/g, " ").toLowerCase() }, { h: "A" + T + " runs ended here", f: r => fi(r[1].t), n: 1 }, { h: "share of A" + T + " runs", f: r => fp(100 * r[1].t / nT), n: 1 },
+      { h: "lower-level runs ended here", f: r => fi(r[1].l), n: 1 }, { h: "share of lower-level runs", f: r => fp(100 * r[1].l / nL), n: 1 }], rows)));
+    bc.append(h("div", { class: "note" }, "Segments " + segs.map(s => s.seg).join(", ") + " together."));
+    return;
+  }
+  const choice = S.bossSeg === "latest" ? [fsegs[fsegs.length - 1]] : S.bossSeg === "all" ? fsegs : fsegs.filter(s => String(s.seg) === String(S.bossSeg));
+  const use = choice.length ? choice : [fsegs[fsegs.length - 1]];
+  bc.append(h("div", { style: "display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin:4px 0 8px;font-size:13px" },
+    h("label", null, "Segments ", h("select", { onchange: e => { S.bossSeg = e.target.value; sec(renderDeaths); } },
+      [["latest", "latest with fight records (s" + fsegs[fsegs.length - 1].seg + ")"], ["all", "all shown (" + fsegs.map(s => "s" + s.seg).join(", ") + ")"]].concat(fsegs.map(s => [String(s.seg), "segment " + s.seg])).map(([v, t]) => h("option", { value: v, selected: String(S.bossSeg) === v }, t)))),
+    h("span", { class: "seg" }, [["boss", "Bosses"], ["elite", "Elites"]].map(([v, t]) => h("button", { "aria-pressed": String(S.bossKind === v), onclick: () => { S.bossKind = v; savePrefs(); sec(renderDeaths); } }, t)))));
+  const A = sumEnc(use, "t", S.bossKind), B = sumEnc(use, "l", S.bossKind), names = [...new Set([...Object.keys(A), ...Object.keys(B)])];
+  const rowsB = names.map(n => { const a = A[n] || [0, 0, 0, 0, 0, 0, 0], b = B[n] || [0, 0, 0, 0, 0, 0, 0], fl = (a[5] + b[5]) / Math.max(1, a[0] + b[0]); return { n, a, b, fl, act: fl <= 20 ? 1 : fl <= 38 ? 2 : 3 }; })
+    .sort((x, y) => x.act - y.act || (x.a[0] ? x.a[1] / x.a[0] : 2) - (y.a[0] ? y.a[1] / y.a[0] : 2));
+  const wonCell = v => v[0] ? h("span", null, fp(100 * v[1] / v[0]), h("span", { class: "mini" }, h("i", { style: "width:" + (100 * v[1] / v[0]).toFixed(0) + "%" }))) : "–";
+  bc.append(h("div", { class: "scroll", style: "max-height:520px" }, h("table", null,
+    h("thead", null, h("tr", null, h("th", { rowspan: 2 }, S.bossKind === "boss" ? "boss" : "elite"), h("th", { rowspan: 2, class: "n" }, "act"), h("th", { rowspan: 2, class: "n" }, "mean floor"), h("th", { colspan: 4, class: "grp" }, "A" + T), h("th", { colspan: 4, class: "grp" }, "lower levels (A0–A" + (T - 1) + ")")),
+      h("tr", null, [0, 1].flatMap(() => [h("th", { class: "n" }, "fights"), h("th", { class: "n" }, "won"), h("th", { class: "n", title: "HP at the start of the fight / max HP, mean" }, "HP share at start"), h("th", { class: "n", title: "Potions held at the start, mean" }, "potions at start")]))),
+    h("tbody", null, rowsB.map(r => h("tr", null, h("td", null, r.n.replace(/_(BOSS|ELITE)$/, "").replace(/_/g, " ").toLowerCase()), h("td", { class: "n" }, r.act), h("td", { class: "n" }, fx(r.fl)),
+      [r.a, r.b].flatMap(v => [h("td", { class: "n" }, fi(v[0])), h("td", { class: "n" }, wonCell(v)), h("td", { class: "n" }, v[0] ? fp(100 * v[2] / v[0], 0) : "–"), h("td", { class: "n" }, v[0] ? fx(v[3] / v[0], 2) : "–")])))))));
+  const part = use.filter(s => s.fights.files < s.fights.of_files);
+  bc.append(h("div", { class: "note" }, "Fight records of segment " + use.map(s => s.seg).join(", ") + ": " + fi(use.reduce((a, s) => a + s.fights.lines, 0)) + " fights read, " + fi(use.reduce((a, s) => a + s.fights.skipped, 0)) + " left out (runs unfinished at the segment end, errors, perturbed starts). Act by mean floor (≤ 20: act 1, ≤ 38: act 2)." +
+    (part.length ? " Incomplete: " + part.map(s => "segment " + s.seg + " has " + s.fights.files + " of " + s.fights.of_files + " actor files").join("; ") + " — run a full sync." : "") +
+    (segList().some(s => s.runs && !(s.fights && s.fights.files)) ? " No fight records on the laptop for segment " + segList().filter(s => s.runs && !(s.fights && s.fights.files)).map(s => s.seg).join(", ") + " (full sync)." : "")));
+}
+
+/* ---------- trainer health ---------- */
+function renderTrainer() {
+  const d = S.data, host = $("trainer"); host.replaceChildren();
+  host.append(h("h2", null, "Trainer health"), h("p", { class: "lead" }, "Macro trainer (PPO for the policy, run value for all five members): one point per update, unsmoothed. Combat trainer: logged every 200 steps, averaged in groups so a segment has about 120 points. Lines break at segment boundaries."));
+  const rows = macroRows().filter(r => !r.live), g = h("div", { class: "grid" }); host.append(g);
+  if (!rows.length) g.append(h("div", { class: "empty card wide" }, h("b", null, "No macro-trainer log on the laptop. "), "Run a light sync (the log of a running segment arrives when it ends)."));
+  else {
+    const ser = (key, name, color, scale) => ({ name, color, pts: rows.filter(r => typeof r[key] === "number").map(r => ({ x: xOf(r), y: (scale || 1) * r[key], seg: r.seg, runs: r.runs, ts: r.ts })) });
+    const tk = +((d.config.env || {}).PPO_TARGET_KL || 0.012);
+    lineChart(g, { id: "tr-ent", title: "PPO policy entropy", sub: "Mean entropy of the macro policy over the update’s decisions; a steady fall toward 0 would mean the policy is collapsing", yLabel: "entropy, nats", fmt: v => fx(v, 3), series: [ser("ent", "entropy", "var(--s1)")] });
+    const klr = +((d.config.env || {}).KL_RUNS || 150000);
+    lineChart(g, { id: "tr-klbc", title: "KL to the behaviour-cloning (S1) policy", sub: "How far the policy has moved from the S1 policy; " + (klr <= 1 ? "the KL penalty is off in this chain (KL_RUNS " + klr + "): shown for reference" : "its penalty weight falls to zero at " + fi(klr) + " runs"), yLabel: "KL, nats", yMin: 0, fmt: v => fx(v, 3), series: [ser("kl_bc", "KL to S1 policy", "var(--s1)")] });
+    lineChart(g, { id: "tr-klstep", title: "KL per update", sub: "KL(policy at the start of the update ‖ now), mean over the update’s steps; PPO stops the update at the first step above the threshold, so the mean stays below it", yLabel: "KL, nats", yMin: 0, fmt: v => fx(v, 4), refs: [{ y: 1.5 * tk, label: "early-stop threshold " + (1.5 * tk).toFixed(3) }], series: [ser("kl_step", "KL per update", "var(--s1)")] });
+    const ps = ser("policy_steps", "policy steps", "var(--s1)"); rows.filter(r => typeof r.policy_steps === "number").forEach((r, i) => { if (r.early_stop) { ps.pts[i].mark = true; ps.pts[i].extra = "stopped early"; } });
+    const nEarly = rows.filter(r => r.early_stop).length;
+    lineChart(g, { id: "tr-steps", title: "Policy steps per update", sub: "Gradient steps taken; yellow dots = updates stopped early by the KL limit (" + nEarly + " of " + rows.length + " shown)", yLabel: "steps", yMin: 0, fmt: v => fi(v), series: [ps] });
+    lineChart(g, { id: "tr-clip", title: "Clip fraction", sub: "Share of decisions whose probability ratio left PPO’s clip range", yLabel: "share, %", yMin: 0, fmt: v => fp(v), series: [ser("clip", "clip fraction", "var(--s1)", 100)] });
+    lineChart(g, { id: "tr-cal", title: "Run-value calibration", sub: "Mean predicted outcome against mean observed outcome on new runs, before each update (floor rows); the lines should stay together", yLabel: "outcome (0 to 1)", fmt: v => fx(v, 3),
+      series: [ser("value_mean_floor_rows", "predicted", "var(--s1)"), ser("outcome_mean_floor_rows", "observed", "var(--s2)")] });
+    const afix = (d.chain_info || {}).alpha_fixed;
+    lineChart(g, { id: "tr-vll", title: "Run-value log-loss", sub: "On new runs before each update" + (afix != null ? " (outcome target with α fixed at " + afix + ")" : "; the outcome target changes as α rises with the A" + d.target_asc + " win rate"), yLabel: "log-loss", fmt: v => fx(v, 3), series: [ser("value_logloss", "log-loss on new runs", "var(--s1)"), ser("value_loss", "training loss", "var(--s2)")] });
+    lineChart(g, { id: "tr-alpha", title: "Outcome blend α and mean outcome", sub: "outcome = α · won + (1 − α) · acts cleared / 3; " + (afix != null ? "α fixed at " + afix + " (--alpha in extra.env)" : "α = A" + d.target_asc + " win rate of the window / 0.2"), yLabel: "value (0 to 1)", yMin: 0, fmt: v => fx(v, 3), series: [ser("alpha", "α", "var(--s1)"), ser("mean_outcome", "mean outcome", "var(--s2)")] });
+    renderCalibration(host, rows);
+  }
+  const cr = d.ctrain.filter(r => segShown(r.seg));
+  const g2 = h("div", { class: "grid", style: "margin-top:12px" }); host.append(g2);
+  if (!cr.length) g2.append(h("div", { class: "empty card wide" }, h("b", null, "No combat-trainer log on the laptop. "), "Run a light sync."));
+  else {
+    const cs = (key, name, color, scale) => ({ name, color, pts: cr.filter(r => typeof r[key] === "number").map(r => ({ x: xOf(r), y: (scale || 1) * r[key], seg: r.seg, runs: r.runs, ts: r.ts, extra: "step " + fi(r.step) })) });
+    lineChart(g2, { id: "ct-loss", title: "Combat trainer losses", sub: "Policy (cross-entropy to the search’s improved policy), value, end-HP head", yLabel: "loss", fmt: v => fx(v, 3), series: [cs("policy", "policy", "var(--s1)"), cs("value", "value", "var(--s2)"), cs("hp", "HP head", "var(--s3)")] });
+    lineChart(g2, { id: "ct-acc", title: "Combat policy accuracy", sub: "Share of positions where the network’s top move is the search’s top move", yLabel: "accuracy, %", fmt: v => fp(v), series: [cs("pol_acc", "policy accuracy", "var(--s1)", 100)] });
+    lineChart(g2, { id: "ct-hp", title: "HP error", sub: "Mean absolute error of the predicted end HP, as a share of max HP", yLabel: "error, % of max HP", yMin: 0, fmt: v => fp(v, 2), series: [cs("hp_mae", "HP error", "var(--s1)", 100)] });
+    lineChart(g2, { id: "ct-kl", title: "Combat policy KL to the search target", sub: "KL(search target ‖ network); falls as the network catches up with its own search", yLabel: "KL, nats", yMin: 0, fmt: v => fx(v, 3), series: [cs("kl", "KL", "var(--s1)")] });
+  }
+  if (S.x === "runs") host.append(h("div", { class: "note" }, "The combat trainer logs time, not runs: its points are placed on the runs axis by interpolating the macro trainer’s (time, runs) pairs of the same segment."));
+}
+
+/* value calibration by ascension group and act (macro_train_log.jsonl "calibration", value_logloss vs its baselines) */
+const CAL_G = [["A10", "A10", "var(--s1)"], ["A9", "A9", "var(--s2)"], ["A0-8", "A0–A8", "var(--s4)"]];
+function renderCalibration(host, rows) {
+  const cr = rows.filter(r => r.cal && Object.keys(r.cal).length);
+  const lr = rows.filter(r => typeof r.value_logloss_table === "number");
+  if (!cr.length && !lr.length) return;
+  const g = h("div", { class: "grid", style: "margin-top:12px" }); host.append(g);
+  const T = S.data.target_asc;
+  if (cr.length) {
+    lineChart(g, { id: "tr-calg", title: "Run-value calibration by ascension group", sub: "Mean ensemble value minus mean outcome on the new runs’ floor rows, before each update; 0 = calibrated, above 0 = too hopeful", yLabel: "value − outcome", fmt: v => (v >= 0 ? "+" : "") + fx(v, 3), refs: [{ y: 0, label: "" }],
+      series: CAL_G.map(([k, n, c]) => ({ name: n, color: c, pts: cr.filter(r => r.cal[k] && r.cal[k][0]).map(r => ({ x: xOf(r), y: r.cal[k][2] - r.cal[k][1], seg: r.seg, runs: r.runs, ts: r.ts, extra: fi(r.cal[k][0]) + " rows, outcome " + fx(r.cal[k][1], 3) + ", value " + fx(r.cal[k][2], 3) })) })) });
+  }
+  if (lr.length) {
+    const ser = (key, name, color) => ({ name, color, pts: lr.filter(r => typeof r[key] === "number").map(r => ({ x: xOf(r), y: r[key], seg: r.seg, runs: r.runs, ts: r.ts })) });
+    lineChart(g, { id: "tr-vlltab", title: "Run-value log-loss against simple baselines", sub: "On new runs before each update. Table = mean outcome per ascension group and act of the same batch (in-sample); a value net above the table line is not using the state", yLabel: "log-loss", fmt: v => fx(v, 3),
+      series: [ser("value_logloss", "value net", "var(--s1)"), ser("value_logloss_table", "9-cell table", "var(--s2)"), ser("value_logloss_const", "constant", "var(--gray)")] });
+    lineChart(g, { id: "tr-vlla10", title: "Run-value log-loss at A" + T + " and below", sub: "value_logloss_a10 / _a0_9 against the table baseline of the same rows", yLabel: "log-loss", fmt: v => fx(v, 3),
+      series: [ser("value_logloss_a10", "A" + T + " value net", "var(--s1)"), ser("value_logloss_table_a10", "A" + T + " table", "var(--o1)"), ser("value_logloss_a0_9", "A0–A" + (T - 1) + " value net", "var(--s4)"), ser("value_logloss_table_a0_9", "A0–A" + (T - 1) + " table", "var(--gray)")] });
+  }
+  if (cr.length) {
+    const last = cr[cr.length - 1], cells = [];
+    for (const [k, n] of CAL_G) for (const a of ["", "_act1", "_act2", "_act3"]) { const v = last.cal[k + a]; if (v && v[0]) cells.push({ g: n, act: a ? "act " + a.slice(4) : "all acts", v }); }
+    const c = card(host, "Calibration cells of the latest update (segment " + last.seg + ", " + fi(last.runs) + " runs)", "Floor rows of the new runs before training: mean outcome, mean ensemble value (sigmoid of the mean logit), gap, and the members’ logit standard deviation (disagreement)", true); c.style.marginTop = "12px";
+    c.append(h("div", { class: "scroll free" }, tbl([{ h: "group", f: r => r.g }, { h: "act", f: r => r.act }, { h: "rows", f: r => fi(r.v[0]), n: 1 }, { h: "outcome", f: r => fx(r.v[1], 3), n: 1 }, { h: "value", f: r => fx(r.v[2], 3), n: 1 },
+      { h: "value − outcome", f: r => (r.v[2] - r.v[1] >= 0 ? "+" : "") + fx(r.v[2] - r.v[1], 3), n: 1 }, { h: "logit sd", f: r => fx(r.v[3], 3), n: 1 }], cells)));
+  }
+}
+
+/* ---------- throughput ---------- */
+function renderThroughput() {
+  const d = S.data, host = $("throughput"); host.replaceChildren();
+  host.append(h("h2", null, "Throughput"), h("p", { class: "lead" }, "From the actor and server logs of finished segments, in " + (d.bin_seconds / 60) + "-minute steps. Runs get longer as the agent survives longer, so runs per hour fall while simulations per second should stay level. For the running segment only the figures in the header are available."));
+  const th = d.throughput.filter(r => segShown(r.seg)), g = h("div", { class: "grid" }); host.append(g);
+  if (!th.length) g.append(h("div", { class: "empty card wide" }, h("b", null, "No actor logs on the laptop. "), "They are uploaded with a segment’s meta/ when it ends. Run a light sync."));
+  else {
+    const ts = (key, name, color) => ({ name, color, pts: th.filter(r => r[key] != null).map(r => ({ x: xOf(r), y: r[key], seg: r.seg, runs: r.runs, ts: r.ts })) });
+    lineChart(g, { id: "th-runs", title: "Runs per hour", sub: "Finished runs of all actors, per " + (d.bin_seconds / 60) + " minutes, scaled to an hour", yLabel: "runs / h", yMin: 0, fmt: v => fi(v), series: [ts("runs_h", "runs per hour", "var(--s1)")] });
+    lineChart(g, { id: "th-sims", title: "Simulations per second", sub: "Search simulations of all actors", yLabel: "simulations / s", yMin: 0, fmt: v => fi(v), series: [ts("sims_s", "simulations per second", "var(--s1)")] });
+    lineChart(g, { id: "th-actors", title: "Actors reporting", sub: "Actors that printed a progress line in the step (" + (d.config.actors || 26) + " were started); a drop is a hung or dead actor", yLabel: "actors", yMin: 0, fmt: v => fi(v), series: [ts("actors", "actors reporting", "var(--s1)")] });
+    lineChart(g, { id: "th-wait", title: "Actor bridge wait", sub: "Share of an actor’s time spent waiting for the combat network, mean over actors; cumulative since the segment start, as the actors print it", yLabel: "share of time, %", yMin: 0, fmt: v => fp(v), series: [ts("wait", "bridge wait", "var(--s1)")] });
+    lineChart(g, { id: "th-busy", title: "Inference servers busy", sub: "Share of time in a batch; cumulative since the segment start. Combat = mean of the combat server processes", yLabel: "share of time, %", yMin: 0, yMax: 100, fmt: v => fp(v, 0), series: [ts("srv_busy", "combat servers", "var(--s1)"), ts("msrv_busy", "macro server", "var(--s2)")] });
+    lineChart(g, { id: "th-states", title: "Combat states evaluated per second", sub: "All combat server processes together", yLabel: "states / s", yMin: 0, fmt: v => fi(v), series: [ts("states_s", "states per second", "var(--s1)")] });
+  }
+  const segs = segList(), mx = Math.max(1, ...segs.map(s => s.runs_per_hour || 0));
+  const c = card(host, "Segments", "Start, duration, runs and result from supervisor.log; runs per hour = runs / duration; simulations and waits from the actors’ last progress lines", true); c.style.marginTop = "12px";
+  c.append(h("div", { class: "scroll free" }, tbl([
+    { h: "segment", f: s => "s" + s.seg }, { h: "started (UTC · local)", f: s => s.start ? dUTC(s.start).slice(5) + " " + tUTC(s.start) + " · " + tLoc(s.start) : "–", nw: 1 }, { h: "duration", f: s => dur(s.duration) + (s.planned && s.duration && s.result !== "running" ? " of " + dur(s.planned) : ""), n: 1 },
+    { h: "runs", f: s => (s.lost ? "≥ " : "") + fi(s.runs_total) + (s.runs_live ? " so far" : "") + (s.result === "discarded" ? " (not used)" : ""), n: 1, t: "Supervisor count; a discarded segment's runs were not trained on; a lost one: the last count status.txt showed" }, { h: "runs / h", f: s => s.runs_per_hour ? h("span", null, fi(s.runs_per_hour), h("span", { class: "mini" }, h("i", { style: "width:" + (100 * s.runs_per_hour / mx).toFixed(0) + "%" }))) : "–", n: 1 },
+    { h: "sims / s", f: s => s.actors ? fi(s.actors.sims_s) : "–", n: 1 }, { h: "bridge wait", f: s => s.actors ? fp(s.actors.wait, 0) : "–", n: 1 }, { h: "servers busy (combat / macro)", f: s => s.actors && s.actors.srv_busy != null ? fp(s.actors.srv_busy, 0) + " / " + fp(s.actors.msrv_busy, 0) : "–", n: 1 },
+    { h: "error runs", f: s => s.runs ? fi(s.runs.error_n) : "–", n: 1 }, { h: "result", f: s => h("span", null, resultCell(s), s.end_est ? " · ended at the latest at the " + s.end_est + " (" + tUTC(s.end) + ")" : "", s.memguard ? " · memory guard killed " + s.memguard + " actor(s)" : ""), wrap: 1 },
+    ...(segs.some(s => s.host) ? [{ h: "host", f: s => s.host || "–", t: "From status.txt (the host it names, seen at syncs) and the hosts known for the chain; – = not derivable" }] : []),
+    { h: "A" + d.target_asc + " evaluation after it", f: s => s.eval ? s.eval.won + "/" + s.eval.ok + " won, floor " + fx(s.eval.floor) + ", act 1 " + fp(s.eval.act1, 0) + ", act 2 " + fp(s.eval.act2, 0) : s.eval_text ? s.eval_text : "–", wrap: 1 },
+    { h: "not on the laptop", f: s => s.missing && s.missing.length ? s.missing.join(", ") : "", wrap: 1 }], segs.map(s => ({ ...s, _dim: !s.counted })))));
+}
+
+/* ---------- problems ---------- */
+function renderProblems() {
+  const d = S.data, host = $("problems"); host.replaceChildren();
+  host.append(h("h2", null, "Problems"), h("p", { class: "lead" }, "Everything the logs on the laptop say went wrong: supervisor lines (guard stops, failures, restarts), actors that went silent, and runs that ended with an error."));
+  if (!d.supervisor_present) host.append(h("div", { class: "empty" }, h("b", null, "supervisor.log is not on the laptop. "), "Run a light sync."));
+  const kinds = { guard: ["warn", "⚠ guard stop"], failed: ["crit", "✕ segment failed"], restart: ["info", "↻ supervisor restart"], downtime: ["warn", "⏱ downtime"], recovered: ["good", "↻ segment recovered"], discarded: ["warn", "∅ segment discarded"], carry: ["crit", "✕ carry backup"], eval: ["warn", "⚠ evaluation"], stopped: ["crit", "✕ run stopped"], pause: ["info", "⏸ pause / resume"], note: ["warn", "· note"], memguard: ["crit", "✕ memory guard killed an actor"] };
+  const sp = d.problems.supervisor.filter(p => p.seg == null || segShown(p.seg));
+  const c1 = card(host, "Supervisor log", sp.length ? sp.length + " line(s)" + (S.segs === "counted" && countedFrom() ? " for segment " + countedFrom() + " and later (the restarts of segments 0–" + (countedFrom() - 1) + " are hidden: switch Segments to All)" : "") : "", true);
+  if (!sp.length) c1.append(h("div", { class: "empty" }, d.supervisor_present ? "No guard stops, failures or restarts in supervisor.log for the shown segments." : "Unknown."));
+  else c1.append(h("div", { class: "scroll" }, tbl([{ h: "time (UTC · local)", f: p => p.ts ? dUTC(p.ts).slice(5) + " " + tUTC(p.ts) + " · " + tLoc(p.ts) : "–", nw: 1 }, { h: "segment", f: p => p.seg == null ? "–" : p.seg, n: 1 },
+    { h: "kind", f: p => h("span", { class: "tag" }, h("span", { class: "dot " + (kinds[p.kind] || kinds.note)[0] }), (kinds[p.kind] || kinds.note)[1]) }, { h: "log line", f: p => h("span", { class: "mono" }, p.text + (p.detail && p.detail.length ? " | " + p.detail.join(" | ") : "")), wrap: 1 }], sp)));
+  const ap = d.problems.actors.filter(p => segShown(p.seg));
+  const c2 = card(host, "Actors that went silent or exited", "An actor whose last progress line is more than 10 minutes before the other actors’ last line, and “no progress for 300 s” exits", true); c2.style.marginTop = "12px";
+  if (!ap.length) c2.append(h("div", { class: "empty" }, d.have.meta_segments.length ? "None in the actor logs of the shown segments." : "No actor logs on the laptop. Run a light sync."));
+  else c2.append(h("div", { class: "scroll" }, tbl([{ h: "segment", f: p => p.seg, n: 1 }, { h: "actor", f: p => p.actor }, { h: "last line (UTC · local)", f: p => p.ts ? tUTC(p.ts) + " · " + tLoc(p.ts) : "–" }, { h: "what", f: p => p.text, wrap: 1 }], ap)));
+  const er = [];
+  for (const s of segList()) if (s.runs) for (const [k, e] of Object.entries(s.runs.errors || {})) er.push({ seg: s.seg, n: e.n, text: k, ex: e.example, seed: e.seed, floor: e.floor, actors: (e.actors || []).join(", "), of: s.runs.lines });
+  er.sort((a, b) => a.seg - b.seg || b.n - a.n);
+  const c3 = card(host, "Runs that ended with an error", "Grouped by error text (numbers replaced by #); error runs are not trained on", true); c3.style.marginTop = "12px";
+  const withRuns = segList().filter(s => s.runs);
+  if (!withRuns.length) c3.append(h("div", { class: "empty" }, "No run records on the laptop. Run a light sync."));
+  else if (!er.length) c3.append(h("div", { class: "empty" }, "No error runs among the " + fi(withRuns.reduce((a, s) => a + s.runs.lines, 0)) + " run records of segment " + withRuns.map(s => s.seg).join(", ") + "."));
+  else c3.append(h("div", { class: "scroll" }, tbl([{ h: "segment", f: e => e.seg, n: 1 }, { h: "runs", f: e => fi(e.n), n: 1 }, { h: "of", f: e => fi(e.of), n: 1 }, { h: "error", f: e => h("span", { class: "mono" }, e.text), wrap: 1 }, { h: "actors", f: e => e.actors, wrap: 1 }, { h: "example (seed, floor)", f: e => (e.seed || "–") + ", floor " + (e.floor == null ? "–" : e.floor) }], er)));
+  // combat stalemates by encounter: self-play run records per segment, evaluations
+  const stSegs = segList().filter(s => s.runs && s.runs.stale && Object.keys(s.runs.stale).length);
+  const stEv = (d.eval || []).filter(e => segShown(e.seg) && ((e.records && e.records.stale && Object.keys(e.records.stale).length) || (e.report && e.report.stale && Object.keys(e.report.stale).length)));
+  if (stSegs.length || stEv.length) {
+    const cs = card(host, "Combat stalemates by encounter", "Runs that ended with “combat stalemate: ENCOUNTER.X” (InvalidOperationException), per segment of self-play (run records) and per evaluation (run records or the hook’s report)", true); cs.style.marginTop = "12px";
+    const cols = [...stSegs.map(s => ({ k: "s" + s.seg, m: s.runs.stale, n: s.runs.lines })), ...stEv.map(e => ({ k: "eval " + e.seg, m: (e.records && e.records.stale) || e.report.stale, n: e.records ? e.records.n + e.records.errors : e.e ? e.e.n : null }))];
+    const encs = [...new Set(cols.flatMap(c => Object.keys(c.m)))].sort((a, b) => cols.reduce((x, c) => x + (c.m[b] || 0), 0) - cols.reduce((x, c) => x + (c.m[a] || 0), 0));
+    cs.append(h("div", { class: "scroll" }, h("table", null, h("thead", null, h("tr", null, h("th", null, "encounter"), h("th", { class: "n" }, "all"), cols.map(c => h("th", { class: "n", title: c.n ? fi(c.n) + " runs" : null }, c.k)))),
+      h("tbody", null, encs.map(en => h("tr", null, h("td", null, en.replace(/_/g, " ").toLowerCase()), h("td", { class: "n" }, fi(cols.reduce((x, c) => x + (c.m[en] || 0), 0))), cols.map(c => h("td", { class: "n" }, c.m[en] ? fi(c.m[en]) : ""))))))));
+  }
+  const ev = (d.events || []).filter(e => e.seg == null || segShown(e.seg));
+  if (ev.length) {
+    const ce = card(host, "Chain events", "supervisor.log lines of the chain hook (curriculum, Vbar job, segment settings, evaluation report), pruning of uploaded segment data, network switches, downtime, evaluations run again and carry backups after an interruption, restores", true); ce.style.marginTop = "12px";
+    ce.append(h("div", { class: "scroll" }, tbl([{ h: "time (UTC · local)", f: p => p.ts ? dUTC(p.ts).slice(5) + " " + tUTC(p.ts) + " · " + tLoc(p.ts) : "–", nw: 1 }, { h: "segment", f: p => p.seg == null ? "–" : p.seg, n: 1 },
+      { h: "kind", f: p => ({ hook: "chain hook", prune: "pruning", switch: "network switch", downtime: "downtime", eval_rerun: "evaluation run again", carry: "carry backup", restore: "restore" })[p.kind] || p.kind }, { h: "log line", f: p => h("span", { class: "mono" }, p.text.replace(/research\/s3\/runs\//g, "")), wrap: 1 }], ev.slice().reverse())));
+  }
+  const notes = segList().filter(s => s.actor_notes && s.actor_notes.length);
+  if (notes.length) {
+    const c4 = card(host, "Actor notes", "Counters the actors print at the end of a segment (summed over actors), e.g. combat_stalemate per encounter", true); c4.style.marginTop = "12px";
+    c4.append(h("div", { class: "scroll" }, tbl([{ h: "segment", f: s => s.seg, n: 1 }, { h: "notes", f: s => h("span", { class: "mono" }, s.actor_notes.map(x => x[0] + " " + x[1]).join(", ")), wrap: 1 }], notes)));
+  }
+  $("foot").textContent = "Local data: " + d.base + " · parsed in " + d.build_seconds + " s at " + tLoc(d.generated_at, true) + " · segments with meta on the laptop: " + (d.have.meta_segments.join(", ") || "none") +
+    " · with fight records: " + (d.have.fights_segments.join(", ") || "none") + ". This page loads nothing from the internet.";
+}
+
+/* ---------- render + poll ---------- */
+function renderAll() {
+  if (!S.data) return;
+  const y = scrollY;
+  for (const f of [renderTop, renderRun, renderFilters, renderEval, renderCurriculum, renderAsc, renderPotions, renderSelfplay, renderDeaths, renderTrainer, renderThroughput, renderProblems]) sec(f);
+  scrollTo(0, y);
+}
+async function post(path, body) {
+  try {
+    const r = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json", "X-Panel": "1" }, body: JSON.stringify(body || {}) });
+    const j = await r.json(); if (j.sync) { S.sync = j.sync; S.parse = j.parse; } if (j.run) S.runinfo = j.run;
+    renderTop(); if (!j.ok && j.message) flash(j.message);
+  } catch (e) { flash("The panel process does not answer: " + e.message); }
+}
+let flashT = null;
+function flash(msg) { const l = $("syncline"); l.prepend(h("span", { class: "err" }, msg)); clearTimeout(flashT); flashT = setTimeout(renderTop, 6000); }
+let lastAgeBucket = null, down = false;
+async function poll() {
+  try {
+    const first = !S.data;
+    const j = await (await fetch(first ? "/api/data" : "/api/state", { cache: "no-store" })).json();
+    down = false; S.sync = j.sync; S.parse = j.parse; S.runinfo = j.run || S.runinfo;
+    if (j.data && j.data.generated_at) { S.data = j.data; S.builtAt = j.parse.built_at; renderAll(); }
+    else if (S.data && j.parse.built_at && j.parse.built_at !== S.builtAt) {
+      const k = await (await fetch("/api/data", { cache: "no-store" })).json();
+      if (k.data && k.data.generated_at) { S.data = k.data; S.builtAt = k.parse.built_at; S.sync = k.sync; S.parse = k.parse; renderAll(); }
+    }
+    renderTop();
+    const a = statusAge(), b = a == null ? 0 : Math.floor(a / 60);      // banners and "time left" follow the clock
+    if (S.data && b !== lastAgeBucket) { lastAgeBucket = b; const y = scrollY; sec(renderRun); scrollTo(0, y); }
+  } catch (e) {
+    if (!down) { down = true; $("asof").replaceChildren(h("span", { class: "pill crit" }, h("span", { class: "dot crit" }), "The panel process does not answer (was it stopped?). The page shows what it last received.")); }
+  }
+}
+$("b-light").onclick = () => post("/api/sync", { level: "light" });
+$("b-full").onclick = () => post("/api/sync", { level: "full" });
+$("b-prev").onclick = () => post("/api/preview");
+$("auto").onchange = e => post("/api/auto", { minutes: +e.target.value, level: "light" });
+$("runsel").onchange = e => { post("/api/run", { run: e.target.value }); e.target.blur(); };
+function applyTheme(t) { if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme; }
+{ let t = new URLSearchParams(location.search).get("theme"); if (t == null) { try { t = localStorage.getItem("s3panel-theme") || ""; } catch (e) { t = ""; } }
+  applyTheme(t); $("theme").value = t; $("theme").onchange = e => { applyTheme(e.target.value); try { localStorage.setItem("s3panel-theme", e.target.value); } catch (x) {} }; }
+let rz = null; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(renderAll, 200); });
+poll(); setInterval(poll, 3000);
+</script>
+</body>
+</html>

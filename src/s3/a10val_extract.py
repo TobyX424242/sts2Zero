@@ -10,7 +10,8 @@ Usage: python -I src/s3/a10val_extract.py <chunk dir> <segment meta dir (with ru
 import glob, json, os, subprocess, sys
 import numpy as np
 
-IW, FW, RM, RW = 460, 208, 16, 16
+RM, RW = 16, 16
+WIDTHS = ((460, 208), (462, 344))   # (ints, floats) per row: layout v1, layout v2 (appended columns; the offsets below are v1's)
 OD_IDS, OD_UPG, OR_IDS, OP_IDS, OCTX = 0, 64, 320, 400, 405
 
 
@@ -25,7 +26,8 @@ def read_chunk(path):
     b = subprocess.run(["zstd", "-dc"], stdin=open(path, "rb"), capture_output=True, check=True).stdout if path.endswith(".zst") else open(path, "rb").read()
     assert b[:8] == b"S3RUNS01", path
     ver, R, N, iw, fw, rm, rw = np.frombuffer(b, "<i4", 7, 8)
-    assert (ver, iw, fw, rm, rw) == (1, IW, FW, RM, RW), path
+    assert (ver, rm, rw) == (1, RM, RW) and (iw, fw) in WIDTHS, path
+    IW, FW = int(iw), int(fw)
     off = 64
     runs = np.frombuffer(b, "<i4", R * RM, off).reshape(R, RM); off += runs.nbytes
     ints = np.frombuffer(b, "<i2", N * IW, off).reshape(N, IW); off += ints.nbytes

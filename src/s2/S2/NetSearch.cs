@@ -13,6 +13,11 @@ public sealed class NetSearchConfig
     /// min-max normalisation (span at least 1e-8): the best of a few noisy samples is pushed to the full
     /// (c_visit + max N) c_scale whatever the real gap. With a floor, gaps below it stay proportionally small.</summary>
     public double QSpanMin { get; set; } = 0;
+    /// <summary>Win-now bound (src/ic113/STALEMATE.md; &lt; 0 = off, the old search): the network value of a
+    /// non-terminal node is capped at the exact T_f of winning in that state (current HP, potions held) minus this
+    /// margin. HP and potions rarely rise inside a fight, so no continuation is worth more than winning now; without the
+    /// cap a value head that overrates a harmless position by a few thousandths makes the search refuse the kill.</summary>
+    public double WinBound { get; set; } = -1;
     /// <summary>Gumbel noise at the root (self-play); off for evaluation.</summary>
     public bool GumbelNoise { get; set; } = true;
     /// <summary>Actions below the root per simulation before the network value is used (cycle guard).</summary>
@@ -34,6 +39,20 @@ public sealed class NetSearchConfig
     /// clone and, if it opens a prompt, split into one root action per answer (<see cref="ActionSpace.LegalAsync"/>).
     /// Off: the root list of the original build (end-turn prompts answered by the selection policy).</summary>
     public bool EndTurnPrompts { get; set; } = true;
+    /// <summary>Common random numbers at the root (<c>crn</c>, 2026-11-15, off by default): the j-th simulation of every
+    /// root candidate draws world j (the seed is the candidate's visit count, not the global simulation index), so the
+    /// candidates are compared on the same draws and the noise of their Q differences shrinks.</summary>
+    public bool Crn { get; set; }
+    /// <summary>A copy of these settings (for per-fight variants, e.g. exact worlds in boss fights only).</summary>
+    /// <summary>Decomposition of the true-future gain (evaluation only): keep the true draw order (<c>KeepDraw</c>) or
+    /// the true enemy randomness (<c>KeepEnemy</c>) in the search's worlds; see <see cref="ResamplingClone.ResampledPartial"/>.</summary>
+    public bool KeepDraw { get; set; }
+    public bool KeepEnemy { get; set; }
+    /// <summary>At most this many distinct sampled worlds per search (0 = a fresh world per simulation, the original).
+    /// Simulation k uses world k mod Worlds, so states after a chance event (draws, end turn) recur and the tree can grow
+    /// past them (2026-11-15 test of tree shattering; every world is drawn from the information set, no leak).</summary>
+    public int Worlds { get; set; }
+    public NetSearchConfig Copy() => (NetSearchConfig)MemberwiseClone();
 }
 
 public sealed class NetSearchResult
@@ -109,6 +128,9 @@ public sealed class NetSearch(NetSearchConfig cfg, IEvaluator net, ITerminalScor
 
     public double TerminalValue(CombatState s) => scorer.Score(s, ctx) / tMax;
 
+    /// <summary>Value of a non-terminal node: the network's, capped by <see cref="NetSearchConfig.WinBound"/> if set.</summary>
+    private double NodeValue(CombatState s, double v) => cfg.WinBound < 0 ? v : Math.Min(v, TerminalValue(s) - cfg.WinBound);
+
     public async Task<NetSearchResult> SearchAsync(CombatState root, int simulations, ulong seed)
     {
         var rng = new Random((int)(seed ^ (seed >> 32)));
@@ -127,7 +149,7 @@ public sealed class NetSearch(NetSearchConfig cfg, IEvaluator net, ITerminalScor
             return res;
         }
         if (cfg.OneTurn) return await OneTurnAsync(root, actions, ev, simulations, seed, rng, res);
-        var rootNode = new Node(actions.Select((a, i) => new Edge(a, logits[i])).ToArray(), ev.Value);
+        var rootNode = new Node(actions.Select((a, i) => new Edge(a, logits[i])).ToArray(), NodeValue(root, ev.Value));
         Edge[] edges = rootNode.Edges;
         Dictionary<ulong, Node> table;
         if (!cfg.Reuse) table = new Dictionary<ulong, Node>();
@@ -164,7 +186,7 @@ public sealed class NetSearch(NetSearchConfig cfg, IEvaluator net, ITerminalScor
                 foreach (int i in remaining)
                 {
                     if (used >= simulations) break;
-                    await SimulateAsync(root, rootNode, edges[i], table, ResamplingClone.Mix(simSeed, (ulong)used), rng, res);
+                    await SimulateAsync(root, rootNode, edges[i], table, ResamplingClone.Mix(simSeed, WorldIndex(cfg.Crn || cfg.Worlds > 0 ? edges[i].N : used)), rng, res);
                     used++;
                 }
             if (remaining.Count > 1)
@@ -252,7 +274,7 @@ public sealed class NetSearch(NetSearchConfig cfg, IEvaluator net, ITerminalScor
                 Timing.Legal += (te - tl) / f; Timing.SimEval += (tw - te) / f; Timing.Sim += (tw - tSim) / f;
                 NetEval e = await pending;
                 tSim = System.Diagnostics.Stopwatch.GetTimestamp();
-                node = new Node(legal.Select((a, i) => new Edge(a, e.Logits[i])).ToArray(), e.Value) { Stamp = _searchNo };
+                node = new Node(legal.Select((a, i) => new Edge(a, e.Logits[i])).ToArray(), NodeValue(world, e.Value)) { Stamp = _searchNo };
                 table[h] = node;
                 v = node.V;
                 stats.Leaves++; Timing.Leaves++;
@@ -270,7 +292,32 @@ public sealed class NetSearch(NetSearchConfig cfg, IEvaluator net, ITerminalScor
         Timing.Sims++;
     }
 
-    private CombatState World(CombatState root, ulong seed) => cfg.ExactWorlds ? ResamplingClone.Exact(root) : ResamplingClone.Resampled(root, seed);
+    private ulong WorldIndex(int k) => (ulong)(cfg.Worlds > 0 ? k % cfg.Worlds : k);
+
+    /// <summary>Lethal backstop (S3 lethal_backstop): the index in <paramref name="actions"/> of a root action that ends the
+    /// fight with a win at once, applied to a resampled clone of <paramref name="root"/> (one world per action, the
+    /// search's world kind and random selection policy); among several such actions the one with the best exact end value
+    /// (T_f; ties: the earlier action). -1 = none. The live state is not touched.</summary>
+    public async Task<int> WinNowAsync(CombatState root, IReadOnlyList<SearchAction> actions, ulong seed)
+    {
+        var rng = new Random((int)(seed ^ (seed >> 32)));
+        int best = -1;
+        double bestV = double.NegativeInfinity;
+        for (int i = 0; i < actions.Count; i++)
+        {
+            CombatState world = World(root, ResamplingClone.Mix(seed, (ulong)i));
+            SearchCardSelectionSource.InstallOn(world, SelectionMode.Policy, SearchCardSelectionSource.RandomPolicy(rng));
+            if (!await ActionSpace.ApplyAsync(world, actions[i])) continue;
+            if (world.Engine is not { IsInProgress: false, Won: true } || world.Players[0].Creature.CurrentHp <= 0) continue;
+            double v = TerminalValue(world);
+            if (v > bestV) { bestV = v; best = i; }
+        }
+        return best;
+    }
+
+    private CombatState World(CombatState root, ulong seed) => cfg.ExactWorlds ? ResamplingClone.Exact(root)
+        : cfg.KeepDraw || cfg.KeepEnemy ? ResamplingClone.ResampledPartial(root, seed, cfg.KeepDraw, cfg.KeepEnemy)
+        : ResamplingClone.Resampled(root, seed);
 
     /// <summary>
     /// One-turn search (G2 arm b): <paramref name="samples"/> times, draw a world, take a root action (round-robin

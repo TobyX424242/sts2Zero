@@ -1,68 +1,75 @@
 {
+  "release": "v0.2.0-ic113-s029",
   "project": "sts2Zero",
-  "release": "v0.1.0-s045",
-  "code_ref": "v0.1.0-s045",
-  "stage": "S3 self-play, segment 45 (s3a_s045)",
-  "date": "2026-11-15",
+  "character": "IRONCLAD",
+  "ascension": 10,
+  "game_version": "v0.113.1",
+  "simulator": {
+    "upstream": "iRyougi/sts2-sim",
+    "tag": "v0.113.1.1",
+    "commit": "1394c376736ab76bd36ace79111c4d5ac0dd66ec",
+    "patch": "src/sims/patches/iryougi-sts2-sim-v113.patch"
+  },
+  "chain": "s3ic",
+  "segment": 29,
+  "self_play_runs_at_segment_end": 528810,
+  "date": "2026-11-20",
   "evaluation": {
-    "ascension": 10,
-    "seeds": 300,
-    "wins": 94,
-    "win_rate": 0.3133,
+    "seeds": "Y100000-Y100299 (300 fixed A10 seeds)",
+    "macro": "greedy",
+    "search": "64 simulations on every move",
+    "runs": 300,
+    "errors": 0,
+    "wins": 152,
+    "win_rate": 0.507,
     "ci95": [
-      0.263,
-      0.368
+      0.45,
+      0.563
     ],
-    "selfplay_runs": 1276289,
-    "checkpoint_eval": "greedy macro, 64 simulations on every move"
+    "mean_floor": 44.0,
+    "act1_cleared": 0.92,
+    "act2_cleared": 0.82,
+    "eval_args": "character=ironclad era=6 tf_heal=1 greedy_map=1 look_beta=20 look_smith=20 look_shop=20 potion_mix_shrink=0.2 potion_mix_extra=1 fake_merchant=1 win_bound=0.001 deck_route=1 lethal_backstop=1 potion_mix=ic113_s029_vbar.json"
   },
-  "combat_weights": {
-    "file": "s3_s045_weights.pt",
-    "role": "playing combat network at segment 45 (the 31.3% evaluation)",
-    "config": {
-      "d": 128,
-      "layers": 2,
-      "heads": 4,
-      "head": "outcome",
-      "obs": 5
+  "assets": {
+    "ic113_s029_weights.pt": {
+      "what": "combat network (playing network of segment 29)",
+      "config": {
+        "d": 128,
+        "layers": 2,
+        "heads": 4,
+        "head": "outcome",
+        "ext": 1,
+        "obs": 5,
+        "vdrop": 0.3
+      },
+      "params": 724810,
+      "version": 44145,
+      "sha256": "57c5f949ed084ce07969e16fe86770357c86ba59203d2af36f8ff713d6adc41c",
+      "bytes": 5832693
     },
-    "state_tensors": 684234
-  },
-  "combat_shadow": {
-    "file": "s3_s045_shadow.pt",
-    "role": "layout-v4/v5 ext combat network; the network segment 46 continues from",
-    "config": {
-      "d": 128,
-      "layers": 2,
-      "heads": 4,
-      "head": "outcome",
-      "ext": 1,
-      "obs": 5
+    "ic113_s029_macro.pt": {
+      "what": "macro ensemble (5 members) + policy",
+      "members": 5,
+      "params_per_member": 2165194,
+      "params_total": 10825970,
+      "version": 1052,
+      "milestones": true,
+      "alpha": 0.85,
+      "layout": 3,
+      "props_digest": "59a4974d5b77",
+      "sha256": "4d63f80c6d135f219a1e4f4d45fda1037633be762823ce29296c5824292ee6ba",
+      "bytes": 43557435
     },
-    "state_tensors": 702410
-  },
-  "macro": {
-    "file": "s3_s045_macro.pt",
-    "role": "S3 macro ensemble and policy at segment 45",
-    "members": 5,
-    "milestones": false
-  },
-  "contents": "Network weights only. No replay buffer or optimizer state is included.",
-  "assets": [
-    {
-      "file": "s3_s045_weights.pt",
-      "bytes": 5505333,
-      "sha256": "ad1ef93f86ae3a33fd0ab9299b36c38ec1864ad4c8211f2915e66df7282e872e"
-    },
-    {
-      "file": "s3_s045_macro.pt",
-      "bytes": 31122456,
-      "sha256": "1d5194cbaa9cb24043a7f943edd60abd5a6346ef14ef6a1805b5871e6843e1b7"
-    },
-    {
-      "file": "s3_s045_shadow.pt",
-      "bytes": 5653327,
-      "sha256": "37a70f224092643956b5e8dab9c16436966e2b07a82262cfe8b5d756ba1d1572"
+    "ic113_s029_vbar.json": {
+      "what": "potion_mix table (per-act potion values) computed from the segment-29 replay carry; the table the segment-29 evaluation used (chain file vbar_s030.json)",
+      "sha256": "53099bb1f8973d16c4c4415651a5d9f5569afd6f4398876940b7f4d06d28b079",
+      "bytes": 15821
     }
-  ]
+  },
+  "code": {
+    "private_commit": "60fc6d4",
+    "note": "sts2Zero main contains the same code with research/ paths renamed to src/"
+  },
+  "not_included": "optimizer state, replay carries, shadow network (d=256, L=3, trained from scratch during segment 29)"
 }

@@ -8,6 +8,6 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../sims/iRyougi-sts2-sim/src/Sts2Sim.Core/Sts2Sim.Core.csproj" />
+    <ProjectReference Include="../../sims/iRyougi-sts2-sim-v113/src/Sts2Sim.Core/Sts2Sim.Core.csproj" />
   </ItemGroup>
 </Project>

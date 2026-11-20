@@ -34,7 +34,7 @@ def main():
     obs, act, pol, meta = (np.concatenate([c[i] for c in parts])[:mx] for i in range(4))
     print(f"held-out: {len(obs):,} decisions from {len(parts)} chunks ({len(files)} eligible); policy targets on "
           f"{(meta[:, 0] > 0).mean():.1%}", flush=True)
-    vocab = co.load_vocab(os.path.join(HERE, "..", "..", "s0", "data", "combat_vocab_v1.json"))
+    vocab = co.load_vocab(os.path.join(HERE, "..", "..", "s0", "data", "combat_vocab_v113.json"))
     print(f"{'arm':12s} {'ver':>6s} {'params':>8s} {'pol_kl':>7s} {'acc':>6s} {'hp':>7s} {'surv':>7s} {'hp_mae':>7s} {'keep':>7s}")
     for spec in args:
         arm, path = spec.split("=", 1)

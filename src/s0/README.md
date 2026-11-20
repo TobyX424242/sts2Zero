@@ -1,7 +1,7 @@
 # S0: simulator extensions for combat search
 
 Code for PROPOSAL.md section 6.1, items 3-6, on top of iRyougi/sts2-sim at commit `db844ad`
-(+ `src/sims/patches/iryougi_local.patch`, + `src/sims/patches/iryougi_s0.patch` from this folder).
+(+ `src/sim_bench/iryougi_local.patch`, + `iryougi_s0.patch` from this folder).
 
 | Path | Content |
 |---|---|
@@ -13,11 +13,11 @@ Code for PROPOSAL.md section 6.1, items 3-6, on top of iRyougi/sts2-sim at commi
 | `S0.Sim/CombatObservation.cs` | draft combat-network token encoder (deliverable 4) |
 | `S0Tests/Program.cs` | console test runner: `resample`, `choices`, `import` |
 | `export_battle_starts.py` | Spire Codex runs -> battle-start JSON lines (uses `value_v1/build_floor_dataset.reconstruct`, read-only) |
-| `data/` | `combat_vocab_v1.json` (ids used by the network); exported battle starts are run-derived and supplied separately. |
+| `data/` | exported battle starts (300 and 1,000 Defect v0.111.0 fights) |
 | `out/` | test outputs quoted below |
-| `src/sims/patches/iryougi_s0.patch` | changes to the iRyougi clone (`git diff` against db844ad + the local patch) |
+| `iryougi_s0.patch` | changes to the iRyougi clone (`git diff` against db844ad + the local patch) |
 
-## Changes to iRyougi (`src/sims/patches/iryougi_s0.patch`)
+## Changes to iRyougi (`iryougi_s0.patch`)
 
 1. `Sts2Sim.Core.csproj`: `InternalsVisibleTo` for `Sts2Sim.S0` and `S0Tests` (needed for the transplant
    importer pieces and the new internal pile methods).
@@ -31,7 +31,7 @@ Code for PROPOSAL.md section 6.1, items 3-6, on top of iRyougi/sts2-sim at commi
 4. `Player.PopulateCombatState`: resets the knowledge after the initial shuffle (before the Innate moves).
 5. `PlayerCombatState.CloneForCombat`: clones copy the counters.
 
-Apply on a fresh clone: `git checkout db844ad && git apply src/sims/patches/iryougi_local.patch && git apply src/sims/patches/iryougi_s0.patch`.
+Apply on a fresh clone: `git checkout db844ad && git apply src/sim_bench/iryougi_local.patch && git apply src/s0/iryougi_s0.patch`.
 
 ## 1. Resampling clone
 
@@ -85,7 +85,7 @@ model or vocabulary; no round-trip test.
 ## Rebuild and rerun
 
 ```bash
-W=$(pwd)  # repository root; cd $W
+W=/mnt/4dbcffbd-bd6e-43c4-bc27-9274605ea5e4/AI/Slay_the_Spire_2_agent; cd $W
 export NUGET_PACKAGES=$W/.cache/nuget DOTNET_CLI_HOME=$W/.cache/dotnet DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 TMPDIR=$W/.cache/tmp
 dotnet build src/s0/S0Tests/S0Tests.csproj -c Release -m:8
 T=src/s0/S0Tests/bin/Release/net9.0/S0Tests.dll
@@ -123,7 +123,7 @@ dotnet $T import src/s0/data/battle_starts_v0.111.0_defect_1000.jsonl 1000   # d
 
 New files: `S0.Sim/ActionSpace.cs`, `S0.Sim/Search.cs`, `S0.Sim/ObsLayout.cs`, `S0.Sim/Bridge.cs`,
 `S0Tests/{ActionTests,M1,EncodeExport,BridgeBench}.cs`, `py/{combat_obs.py,test_roundtrip.py,bridge_server.py}`,
-`data/combat_vocab_v1.json`. No further iRyougi changes (`src/sims/patches/iryougi_s0.patch` unchanged).
+`data/combat_vocab_v1.json`, `data/obs_v1_1000/`. No further iRyougi changes (`iryougi_s0.patch` unchanged).
 
 ## Action space (`ActionSpace`)
 `ActionSpace.LegalAsync(state, includePotions, expandSelections)` / `Base(state)` return `SearchAction`s: card plays

@@ -16,10 +16,26 @@ Weights of another structure (2026-11-15: e.g. a checkpoint with config "ext": 1
 network is rebuilt from the checkpoint (combat_pipe.CombatPipe.replace_net: captured graphs are dropped and captured
 again); same structure: loaded in place as before. A checkpoint with another output width (value head) is refused.
 
+Macro row layout (2026-11-16, macro_s3.py header): the macro bridge files carry rows of the current widths (macro_s3.IW,
+FW; the C# client checks them against ML.IW / ML.FW). --mlayout 1 serves bridges of the v1 widths (460 ints, 208 floats)
+to actors built before layout v2; their rows are zero-padded for the network (which then sees none of the v2 inputs).
+
+Layout v3 (2026-11-16): the current widths are 478 / 472; --mlayout 2 serves actors of the layout v2 build (462 / 344),
+--mlayout 1 those of v1 (460 / 208). The C# DLL and this module must be of the same layout (the client checks the widths).
+
+GPU options for the macro half (off by default; with both off the macro batch is the original code, unchanged):
+  --mgraphs 1   CUDA graphs (macro_graphs.py): decision rows and value rows each padded to their own bucket (--mbuckets,
+                default 8,16,32,64,128,256) and run as the captured graph of (half, bucket); a half above the largest
+                bucket runs eagerly. Milestone blending is captured too. A reload that fits the served ensemble is copied
+                into the same parameter tensors (graphs kept); another member count / vocabulary / architecture builds a
+                new ensemble and the graphs are captured again. The stats line counts captures.
+  --mdtype bf16 the macro forward under autocast (default fp32; values feed the lookahead and T_f prices: precision
+                matters, see src/s3/README.md before using it)
+
 Usage: python -I src/s3/py/s3_server.py --prefix /dev/shm/s3_c --mprefix /dev/shm/s3_m --actors 8
            --weights src/s2/runs/X/weights.pt --macro src/s3/data/macro_s1.pt [--capacity 64] [--mcapacity 256]
 """
-import argparse, mmap, os, struct, sys, time
+import argparse, json, mmap, os, struct, sys, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 S2PY = os.path.join(HERE, "..", "..", "s2", "py")
@@ -37,8 +53,10 @@ MBUCKETS = [8, 32, 128, 512, 2048, 8192]
 
 
 class MacroActor:
-    def __init__(self, path, B):
-        ib, fb, ob = B * ms.IW * 4, B * ms.FW * 4, B * ms.OW * 4
+    def __init__(self, path, B, iw=ms.IW, fw=ms.FW):
+        """iw, fw: the row widths of this bridge file (the current layout, or the v1 widths for an old actor build)."""
+        self.iw, self.fw = iw, fw
+        ib, fb, ob = B * iw * 4, B * fw * 4, B * ms.OW * 4
         size = cs.HEADER + ib + fb + ob
         with open(path + ".tmp", "wb") as f:
             f.truncate(size)
@@ -47,10 +65,10 @@ class MacroActor:
         self.fd = os.open(path, os.O_RDWR)
         self.mm = mmap.mmap(self.fd, size)
         self.hdr = np.frombuffer(self.mm, dtype="<i8", count=cs.HEADER // 8)
-        self.ints = np.frombuffer(self.mm, dtype="<i4", count=B * ms.IW, offset=cs.HEADER).reshape(B, ms.IW)
-        self.floats = np.frombuffer(self.mm, dtype="<f4", count=B * ms.FW, offset=cs.HEADER + ib).reshape(B, ms.FW)
+        self.ints = np.frombuffer(self.mm, dtype="<i4", count=B * iw, offset=cs.HEADER).reshape(B, iw)
+        self.floats = np.frombuffer(self.mm, dtype="<f4", count=B * fw, offset=cs.HEADER + ib).reshape(B, fw)
         self.out = np.frombuffer(self.mm, dtype="<f4", count=B * ms.OW, offset=cs.HEADER + ib + fb).reshape(B, ms.OW)
-        struct.pack_into("<iiii", self.mm, 8, B, ms.IW, ms.FW, ms.OW)
+        struct.pack_into("<iiii", self.mm, 8, B, iw, fw, ms.OW)
         self.last = 0
         self.done = False
 
@@ -72,12 +90,26 @@ class MacroActor:
             pass
 
 
+def check_mvocab(ens, path, macro_path):
+    """ic113: the macro network's id lists must be the actors' (a v0.111 file under the v0.113 vocabulary would read every
+    shifted id as another card / relic). Convert old files with src/ic113/convert_v113.py."""
+    if not path:
+        return
+    v = json.load(open(path))
+    bad = [k for k in ("card", "ench", "relic", "potion", "encounter") if list(ens.vocab[k]) != list(v[k])]
+    if bad:
+        raise SystemExit(f"[s3srv] {macro_path}: macro vocabulary differs from {path} in {bad} (convert the file with "
+                         f"src/ic113/convert_v113.py, or pass the matching --mvocab)")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--prefix", default="/dev/shm/s3_c"); ap.add_argument("--mprefix", default="/dev/shm/s3_m")
     ap.add_argument("--actors", type=int, default=1)
     ap.add_argument("--capacity", type=int, default=64); ap.add_argument("--mcapacity", type=int, default=256)
-    ap.add_argument("--vocab", default=os.path.join(HERE, "..", "..", "s0", "data", "combat_vocab_v1.json"))
+    ap.add_argument("--vocab", default=os.path.join(HERE, "..", "..", "s0", "data", "combat_vocab_v113.json"))
+    ap.add_argument("--mvocab", default=os.path.join(HERE, "..", "data", "macro_vocab_v113.json"),
+                    help="the actors' macro vocabulary (S3 mvocab=): the macro file must use the same id lists (ic113 check; '' = off)")
     ap.add_argument("--weights", required=True, help="combat network checkpoint (src/s2/py/model.py)")
     ap.add_argument("--macro", required=True, help="macro ensemble file (macro_s3.Ensemble)")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
@@ -99,6 +131,13 @@ def main():
                     "to this .npz file")
     ap.add_argument("--dump-batches", type=int, default=200)
     ap.add_argument("--dump-every", type=int, default=1, help="with --dump: keep every K-th batch")
+    ap.add_argument("--mlayout", type=int, default=3, choices=[1, 2, 3], help="macro bridge row widths: 3 = the current layout "
+                    "(macro_s3.IW / FW), 2 = layout v2 (462 / 344), 1 = layout v1 (460 / 208) for actors of older builds "
+                    "(rows zero-padded)")
+    ap.add_argument("--mgraphs", type=int, default=0, choices=[0, 1], help="macro: CUDA graphs per (half, row bucket)")
+    ap.add_argument("--mbuckets", default="8,16,32,64,128,256", help="macro with --mgraphs 1: row buckets of each half")
+    ap.add_argument("--mdtype", default="fp32", choices=["fp32", "bf16"], help="macro: autocast dtype of the forward")
+    ap.add_argument("--value-members", default="", help="macro: comma-separated member indices for value/T_f rows (default '' = all members; e.g. '1,2,3,4' to exclude Member 0)")
     a = ap.parse_args()
     torch.backends.cuda.matmul.allow_tf32 = True
     dev = a.device
@@ -106,7 +145,7 @@ def main():
         torch.set_num_threads(max(1, len(os.sched_getaffinity(0))))
     dt = {"bf16": torch.bfloat16, "fp16": torch.float16, "fp32": torch.float32}[a.dtype]
     vocab = co.load_vocab(a.vocab)
-    state = {"net": None, "cver": 0, "cm": None, "ens": None, "mm": None, "pipe": None}
+    state = {"net": None, "cver": 0, "cm": None, "ens": None, "mm": None, "pipe": None, "mserve": None}
 
     def load(path):
         for _ in range(20):
@@ -147,6 +186,14 @@ def main():
             try:
                 if state["ens"] is None:
                     state["ens"] = ms.Ensemble.load(a.macro, dev)
+                    if a.value_members:
+                        state["ens"].set_value_members(a.value_members)
+                    check_mvocab(state["ens"], a.mvocab, a.macro)
+                elif state["mserve"] is not None:     # --mgraphs / --mdtype: in place if it fits, else rebuilt
+                    if state["mserve"].reload(a.macro):
+                        print(f"[s3srv] macro ensemble rebuilt ({len(state['mserve'].ens.nets)} members): graphs dropped",
+                              flush=True)
+                    state["ens"] = state["mserve"].ens
                 else:
                     state["ens"].load_members_from(a.macro)
                 state["mm"] = m
@@ -157,7 +204,8 @@ def main():
     net, ens = state["net"], state["ens"]
     n_value = net.value[-1].out_features
     cact = [cs.Actor(f"{a.prefix}{a.first + i}", a.capacity, n_value) for i in range(a.actors)] if a.serve != "macro" else []
-    mact = [MacroActor(f"{a.mprefix}{a.first + i}", a.mcapacity) for i in range(a.actors)] if a.serve != "combat" else []
+    m_iw, m_fw = ms.WIDTHS[a.mlayout]
+    mact = [MacroActor(f"{a.mprefix}{a.first + i}", a.mcapacity, m_iw, m_fw) for i in range(a.actors)] if a.serve != "combat" else []
     T, TW, A, AW = co.MAX_TOKENS, co.TOKEN_WIDTH, co.MAX_ACTIONS, co.ACTION_WIDTH
     maxB = next((b for b in cs.BUCKETS if b >= a.capacity * a.actors), a.capacity * a.actors)
     pin = dev == "cuda"
@@ -168,6 +216,13 @@ def main():
     n_obs_flat, n_act = h_obs_flat.numpy(), h_act.numpy()
     mB = next((b for b in MBUCKETS if b >= a.mcapacity * a.actors), a.mcapacity * a.actors)
     m_ints = np.zeros((mB, ms.IW), np.int32); m_floats = np.zeros((mB, ms.FW), np.float32)
+    mserve = None
+    if (a.mgraphs or a.mdtype != "fp32") and mact:
+        # without CUDA: --mdtype is ignored and --mgraphs 1 runs the graphs' static-shape forward eagerly (a test aid)
+        from macro_graphs import MacroServe
+        mserve = state["mserve"] = MacroServe(ens, dev, graphs=bool(a.mgraphs),
+                                              dtype={"fp32": torch.float32, "bf16": torch.bfloat16}[a.mdtype],
+                                              buckets=[int(x) for x in a.mbuckets.split(",")])
     pipe = None
     if (a.graphs or a.overlap) and cact:
         if dev != "cuda":
@@ -182,8 +237,11 @@ def main():
     for ac in mact:
         ac.hdr[5] = ens.version; ac.hdr[0] = MMAGIC
     print(f"s3 server ready ({a.serve}): actors {a.first}..{a.first + a.actors - 1}; combat {a.prefix}* capacity {a.capacity} (model v{state['cver']}, head "
-          f"{net.config['head']}); macro {a.mprefix}* capacity {a.mcapacity} ({len(ens.nets)} members, v{ens.version}); device {dev} {a.dtype}"
-          + (f"; combat graphs {a.graphs}, overlap {a.overlap} (min {a.overlap_min})" if pipe is not None else ""), flush=True)
+          f"{net.config['head']}); macro {a.mprefix}* capacity {a.mcapacity} ({len(ens.nets)} members, v{ens.version}, rows {m_iw} ints + {m_fw} floats); "
+          f"device {dev} {a.dtype}"
+          + (f"; combat graphs {a.graphs}, overlap {a.overlap} (min {a.overlap_min})" if pipe is not None else "")
+          + (f"; macro graphs {a.mgraphs} (buckets {a.mbuckets}), dtype {a.mdtype}" if mserve is not None else "")
+          + (f"; value_members {ens.value_members}" if ens.value_members is not None else ""), flush=True)
     served = batches = mserved = mbatches = 0
 
     def add_dump(obs, act, res):
@@ -310,16 +368,22 @@ def main():
             seqs, ns, off = [], [], 0
             for ac in mready:
                 k = int(ac.hdr[8]); n = ac.n()
-                m_ints[off:off + n] = ac.ints[:n]; m_floats[off:off + n] = ac.floats[:n]
+                # the bridge's row widths (v1 bridges: the layout v2 columns of the batch buffers are never written: zero)
+                m_ints[off:off + n, :ac.iw] = ac.ints[:n]; m_floats[off:off + n, :ac.fw] = ac.floats[:n]
                 seqs.append(k); ns.append(n); off += n
-            Bp = next((b for b in MBUCKETS if b >= off), off)
-            m_ints[off:Bp] = 0; m_floats[off:Bp] = 0
-            m_ints[off:Bp, ms.OFF["ctx"][0] + 4] = 1     # padded rows: valid room index, nothing else
-            res = ens.serve(m_ints[:Bp], m_floats[:Bp], dev)[:off].cpu().numpy()
+            if mserve is None:
+                Bp = next((b for b in MBUCKETS if b >= off), off)
+                m_ints[off:Bp] = 0; m_floats[off:Bp] = 0
+                m_ints[off:Bp, ms.OFF["ctx"][0] + 4] = 1     # padded rows: valid room index, nothing else
+                res = ens.serve(m_ints[:Bp], m_floats[:Bp], dev)[:off].cpu().numpy()
+                mver = ens.version
+            else:                                            # each half padded to its own bucket inside
+                res = mserve.serve(m_ints[:off], m_floats[:off])
+                mver = mserve.ens.version
             off = 0
             for ac, k, n in zip(mready, seqs, ns):
                 ac.out[:n] = res[off:off + n]; off += n
-                ac.hdr[17] = ens.version
+                ac.hdr[17] = mver
                 ac.hdr[16] = k
                 ac.last = k
             mserved += off; mbatches += 1
@@ -329,8 +393,9 @@ def main():
             el = now - t0
             print(f"[s3srv] {el:.0f}s combat {served} states in {batches} batches (mean {served / max(1, batches):.0f}), {served / el:.0f}/s, "
                   f"busy {100 * t_c / el:.0f}%; macro {mserved} rows in {mbatches} batches (mean {mserved / max(1, mbatches):.0f}), "
-                  f"busy {100 * t_m / el:.0f}%; versions combat {state['cver']} macro {ens.version}"
-                  + (f"; graphs captured {pipe.captures}" if pipe is not None and pipe.use_graphs else ""), flush=True)
+                  f"busy {100 * t_m / el:.0f}%; versions combat {state['cver']} macro {(ens if mserve is None else mserve.ens).version}"
+                  + (f"; graphs captured {pipe.captures}" if pipe is not None and pipe.use_graphs else "")
+                  + (f"; {mserve.stats()}" if mserve is not None else ""), flush=True)
             t_last = now
         maybe_reload()
     while pipe is not None and pipe.inflight:   # answers still in flight (e.g. an actor that died while waiting)

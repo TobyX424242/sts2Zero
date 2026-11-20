@@ -167,7 +167,9 @@ public static class RelicCounterValues
         [typeof(Kunai)] = Field<Kunai>("_attacksThisTurn"),
         [typeof(Shuriken)] = Field<Shuriken>("_attacksThisTurn"),
         [typeof(OrnamentalFan)] = Field<OrnamentalFan>("_attacksThisTurn"),
-        [typeof(VelvetChoker)] = Field<VelvetChoker>("_cardsPlayedThisTurn"),
+        // ic113: v0.113.1 Velvet Choker counts the card plays started this turn (PlayerCombatState.CardPlaysStartedThisTurn,
+        // read through the relic's private property); v0.111 kept its own _cardsPlayedThisTurn field
+        [typeof(VelvetChoker)] = Property<VelvetChoker>("CardPlaysStartedThisTurn"),
         [typeof(Pocketwatch)] = Property<Pocketwatch>("CardsPlayedThisTurn"),
         [typeof(Girya)] = Property<Girya>("TimesLifted"),
         [typeof(BookOfFiveRings)] = Property<BookOfFiveRings>("DisplayAmount"),

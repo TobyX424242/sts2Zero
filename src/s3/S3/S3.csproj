@@ -14,6 +14,6 @@
   <ItemGroup>
     <ProjectReference Include="../../s2/S2/S2.csproj" />
     <ProjectReference Include="../../s0/S0.Sim/S0.Sim.csproj" />
-    <ProjectReference Include="../../sims/iRyougi-sts2-sim/src/Sts2Sim.Core/Sts2Sim.Core.csproj" />
+    <ProjectReference Include="../../sims/iRyougi-sts2-sim-v113/src/Sts2Sim.Core/Sts2Sim.Core.csproj" />
   </ItemGroup>
 </Project>

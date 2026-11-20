@@ -1,0 +1,5 @@
+== tf64: 300 runs (0 errors), won 152 = 50.7% (95% CI 45.0-56.3), mean floor 44.0, act 1 cleared 92%, act 2 cleared 82%
+   per run: fights 20.4 (won 97.6%), elites 6.55, bosses won 891/1008, rests 3.64, smiths 4.82 (rest share 43%), shops 3.61, cards taken 14.1 / skipped 5.8, deck 29.1, potions used 10.3, simulations 25544, seconds 430
+   deaths: TEST_SUBJECT_BOSS 33, AEONGLASS_BOSS 30, QUEEN_BOSS 27, KAISER_CRAB_BOSS 8, ENTOMANCER_ELITE 7, BYGONE_EFFIGY_ELITE 5, KNOWLEDGE_DEMON_BOSS 5, PHROG_PARASITE_ELITE 5
+   fights: boss 1008 won 88.4% rel T_f 0.764 HP lost 36.6 potions 1.08; elite 1964 won 98.6% rel T_f 0.842 HP lost 20.6 potions 0.57; monster 3144 won 99.9% rel T_f 0.925 HP lost 6.0 potions 0.28
+   act 3: boss 1 reached 242, won 216; boss 2 reached 216, won 152; boss-1 win -> run win 152/216; boss-2 start: HP share 0.678, potions 1.27

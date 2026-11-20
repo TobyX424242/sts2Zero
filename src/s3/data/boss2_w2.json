@@ -7,9 +7,9 @@
  "n": 1386,
  "won_rate": 0.11544011544011544,
  "sources": [
-  "s3a_s013",
-  "s3a_s014",
-  "s3a_s015",
-  "s3a_s016"
+  "src/server_backup/s3/s3a_s013/meta",
+  "src/server_backup/s3/s3a_s014/meta",
+  "src/server_backup/s3/s3a_s015/meta",
+  "src/server_backup/s3/s3a_s016/meta"
  ]
 }

@@ -5,7 +5,7 @@ literals differ, with the literals only one side has, boss-encounter monsters fi
 Usage: python3 src/s2/fidelity_monsters.py"""
 import collections, glob, os, re
 G = ".cache/decomp_v0111/MegaCrit.Sts2.Core.Models.Monsters"
-S = "src/sims/iRyougi-sts2-sim/src/Sts2Sim.Core/Models/Monsters"
+S = "src/sims/iRyougi-sts2-sim-v113/src/Sts2Sim.Core/Models/Monsters"
 num = re.compile(r"(?<![\w.])(-?\d+)(m)?(?![\w.]|f\b)")
 def lits(path):
     t = open(path, encoding="utf-8", errors="replace").read()
@@ -17,9 +17,9 @@ def lits(path):
         if v in (0, 1): continue                            # loop/index noise
         out[v] += 1
     return out
-boss_src = open(glob.glob("src/sims/iRyougi-sts2-sim/src/Sts2Sim.Core/Content/Acts/*Bosses*.cs")[0]).read() if glob.glob("src/sims/iRyougi-sts2-sim/src/Sts2Sim.Core/Content/Acts/*Bosses*.cs") else ""
+boss_src = open(glob.glob("src/sims/iRyougi-sts2-sim-v113/src/Sts2Sim.Core/Content/Acts/*Bosses*.cs")[0]).read() if glob.glob("src/sims/iRyougi-sts2-sim-v113/src/Sts2Sim.Core/Content/Acts/*Bosses*.cs") else ""
 boss_files = set()
-for f in glob.glob("src/sims/iRyougi-sts2-sim/src/Sts2Sim.Core/Content/Acts/*Bosses*.cs"):
+for f in glob.glob("src/sims/iRyougi-sts2-sim-v113/src/Sts2Sim.Core/Content/Acts/*Bosses*.cs"):
     boss_files |= set(re.findall(r"Monster<(\w+)>|typeof\((\w+)\)|new (\w+)\(", open(f).read()) and
                       [x for tup in re.findall(r"Monster<(\w+)>|typeof\((\w+)\)", open(f).read()) for x in tup if x])
 gm = {os.path.basename(p)[:-3]: p for p in glob.glob(f"{G}/*.cs")}

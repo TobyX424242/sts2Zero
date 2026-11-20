@@ -1,6 +1,6 @@
 """Layout-v4 / ext network check (CPU, a few seconds; no GPU, no server).
 
-Usage: python -I src/s3/py/ext_test.py WEIGHTS.pt CHUNK.s2d [--n 256] [--vocab src/s0/data/combat_vocab_v1.json]
+Usage: python -I src/s3/py/ext_test.py WEIGHTS.pt CHUNK.s2d [--n 256] [--vocab src/s0/data/combat_vocab_v113.json]
   WEIGHTS: a v3 combat checkpoint (e.g. src/s3/weights/s037/weights.pt); CHUNK: a training chunk written by v3 actors.
 
 (a) blindness and identity at init, on n real decisions of the chunk:
@@ -31,7 +31,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("weights"); ap.add_argument("chunk")
     ap.add_argument("--n", type=int, default=256)
-    ap.add_argument("--vocab", default=os.path.join(HERE, "..", "..", "s0", "data", "combat_vocab_v1.json"))
+    ap.add_argument("--vocab", default=os.path.join(HERE, "..", "..", "s0", "data", "combat_vocab_v113.json"))
     a = ap.parse_args()
     torch.manual_seed(0)
     rng = np.random.default_rng(0)

@@ -1,0 +1,1482 @@
+{
+  "arms": {
+    "s64": {
+      "errors": 0,
+      "capped": 0
+    },
+    "s128": {
+      "errors": 0,
+      "capped": 0
+    },
+    "s256": {
+      "errors": 0,
+      "capped": 0
+    }
+  },
+  "comparisons": {
+    "s128_vs_s64": {
+      "all_act3_boss": {
+        "n": 904,
+        "base_win": 0.7622,
+        "base_ci": [
+          0.7333,
+          0.7888
+        ],
+        "arm_win": 0.7644,
+        "arm_ci": [
+          0.7356,
+          0.7909
+        ],
+        "diff_win": 0.0022,
+        "diff_win_ci": [
+          -0.0199,
+          0.0243
+        ],
+        "arm_only": 53,
+        "base_only": 51,
+        "mcnemar_p": 0.92195,
+        "base_hp": 30.78,
+        "arm_hp": 32.14,
+        "diff_hp": 1.36,
+        "diff_hp_ci": [
+          0.37,
+          2.34
+        ],
+        "both_won_n": 638,
+        "both_won_diff_hp": 1.64,
+        "both_won_diff_hp_ci": [
+          0.42,
+          2.86
+        ],
+        "base_score": 0.6286,
+        "arm_score": 0.6313,
+        "diff_score": 0.0026,
+        "diff_score_ci": [
+          -0.0162,
+          0.0215
+        ],
+        "base_rel": 0.6951,
+        "arm_rel": 0.6997,
+        "diff_rel": 0.0046,
+        "diff_rel_ci": [
+          -0.0154,
+          0.0245
+        ],
+        "base_pot": 1.31,
+        "arm_pot": 1.271,
+        "base_sec": 32.147,
+        "arm_sec": 62.153,
+        "base_sims": 2320.4,
+        "arm_sims": 4653.0
+      },
+      "boss1": {
+        "n": 478,
+        "base_win": 0.8703,
+        "base_ci": [
+          0.8372,
+          0.8975
+        ],
+        "arm_win": 0.8766,
+        "arm_ci": [
+          0.844,
+          0.9031
+        ],
+        "diff_win": 0.0063,
+        "diff_win_ci": [
+          -0.0194,
+          0.0319
+        ],
+        "arm_only": 21,
+        "base_only": 18,
+        "mcnemar_p": 0.74926,
+        "base_hp": 41.03,
+        "arm_hp": 42.24,
+        "diff_hp": 1.21,
+        "diff_hp_ci": [
+          -0.22,
+          2.65
+        ],
+        "both_won_n": 398,
+        "both_won_diff_hp": 1.19,
+        "both_won_diff_hp_ci": [
+          -0.39,
+          2.77
+        ],
+        "base_score": 0.6177,
+        "arm_score": 0.6248,
+        "diff_score": 0.0071,
+        "diff_score_ci": [
+          -0.0062,
+          0.0204
+        ],
+        "base_rel": 0.7434,
+        "arm_rel": 0.7542,
+        "diff_rel": 0.0107,
+        "diff_rel_ci": [
+          -0.0074,
+          0.0289
+        ],
+        "base_pot": 1.406,
+        "arm_pot": 1.328,
+        "base_sec": 34.6,
+        "arm_sec": 67.323,
+        "base_sims": 2492.2,
+        "arm_sims": 5006.7
+      },
+      "boss2_final": {
+        "n": 426,
+        "base_win": 0.6408,
+        "base_ci": [
+          0.5942,
+          0.685
+        ],
+        "arm_win": 0.6385,
+        "arm_ci": [
+          0.5918,
+          0.6827
+        ],
+        "diff_win": -0.0023,
+        "diff_win_ci": [
+          -0.0395,
+          0.0348
+        ],
+        "arm_only": 32,
+        "base_only": 33,
+        "mcnemar_p": 1.0,
+        "base_hp": 19.28,
+        "arm_hp": 20.8,
+        "diff_hp": 1.52,
+        "diff_hp_ci": [
+          0.19,
+          2.85
+        ],
+        "both_won_n": 240,
+        "both_won_diff_hp": 2.39,
+        "both_won_diff_hp_ci": [
+          0.47,
+          4.31
+        ],
+        "base_score": 0.6408,
+        "arm_score": 0.6385,
+        "diff_score": -0.0023,
+        "diff_score_ci": [
+          -0.0395,
+          0.0348
+        ],
+        "base_rel": 0.6408,
+        "arm_rel": 0.6385,
+        "diff_rel": -0.0023,
+        "diff_rel_ci": [
+          -0.0395,
+          0.0348
+        ],
+        "base_pot": 1.202,
+        "arm_pot": 1.207,
+        "base_sec": 29.396,
+        "arm_sec": 56.35,
+        "base_sims": 2127.7,
+        "arm_sims": 4256.0
+      },
+      "enc:ENCOUNTER.AEONGLASS_BOSS": {
+        "n": 308,
+        "base_win": 0.724,
+        "base_ci": [
+          0.6716,
+          0.771
+        ],
+        "arm_win": 0.7338,
+        "arm_ci": [
+          0.6817,
+          0.78
+        ],
+        "diff_win": 0.0097,
+        "diff_win_ci": [
+          -0.0246,
+          0.044
+        ],
+        "arm_only": 16,
+        "base_only": 13,
+        "mcnemar_p": 0.71107,
+        "base_hp": 29.64,
+        "arm_hp": 30.98,
+        "diff_hp": 1.34,
+        "diff_hp_ci": [
+          -0.48,
+          3.16
+        ],
+        "both_won_n": 210,
+        "both_won_diff_hp": 2.05,
+        "both_won_diff_hp_ci": [
+          -0.34,
+          4.45
+        ],
+        "base_score": 0.5901,
+        "arm_score": 0.5898,
+        "diff_score": -0.0003,
+        "diff_score_ci": [
+          -0.0303,
+          0.0298
+        ],
+        "base_rel": 0.6584,
+        "arm_rel": 0.6641,
+        "diff_rel": 0.0057,
+        "diff_rel_ci": [
+          -0.0259,
+          0.0372
+        ],
+        "base_pot": 1.364,
+        "arm_pot": 1.341,
+        "base_sec": 28.108,
+        "arm_sec": 54.287,
+        "base_sims": 2018.0,
+        "arm_sims": 4041.9
+      },
+      "boss2:ENCOUNTER.AEONGLASS_BOSS": {
+        "n": 146,
+        "base_win": 0.5959,
+        "base_ci": [
+          0.5148,
+          0.672
+        ],
+        "arm_win": 0.5753,
+        "arm_ci": [
+          0.4942,
+          0.6526
+        ],
+        "diff_win": -0.0205,
+        "diff_win_ci": [
+          -0.0792,
+          0.0381
+        ],
+        "arm_only": 8,
+        "base_only": 11,
+        "mcnemar_p": 0.64761,
+        "base_hp": 16.58,
+        "arm_hp": 17.71,
+        "diff_hp": 1.13,
+        "diff_hp_ci": [
+          -1.12,
+          3.39
+        ],
+        "both_won_n": 76,
+        "both_won_diff_hp": 3.79,
+        "both_won_diff_hp_ci": [
+          0.22,
+          7.36
+        ],
+        "base_score": 0.5959,
+        "arm_score": 0.5753,
+        "diff_score": -0.0205,
+        "diff_score_ci": [
+          -0.0792,
+          0.0381
+        ],
+        "base_rel": 0.5959,
+        "arm_rel": 0.5753,
+        "diff_rel": -0.0205,
+        "diff_rel_ci": [
+          -0.0792,
+          0.0381
+        ],
+        "base_pot": 1.233,
+        "arm_pot": 1.26,
+        "base_sec": 25.492,
+        "arm_sec": 49.032,
+        "base_sims": 1819.8,
+        "arm_sims": 3637.3
+      },
+      "boss1:ENCOUNTER.AEONGLASS_BOSS": {
+        "n": 162,
+        "base_win": 0.8395,
+        "base_ci": [
+          0.7752,
+          0.8881
+        ],
+        "arm_win": 0.8765,
+        "arm_ci": [
+          0.817,
+          0.9186
+        ],
+        "diff_win": 0.037,
+        "diff_win_ci": [
+          -0.0009,
+          0.075
+        ],
+        "arm_only": 8,
+        "base_only": 2,
+        "mcnemar_p": 0.10938,
+        "base_hp": 41.42,
+        "arm_hp": 42.95,
+        "diff_hp": 1.53,
+        "diff_hp_ci": [
+          -1.27,
+          4.33
+        ],
+        "both_won_n": 134,
+        "both_won_diff_hp": 1.07,
+        "both_won_diff_hp_ci": [
+          -2.09,
+          4.23
+        ],
+        "base_score": 0.5849,
+        "arm_score": 0.6029,
+        "diff_score": 0.018,
+        "diff_score_ci": [
+          -0.0036,
+          0.0395
+        ],
+        "base_rel": 0.7148,
+        "arm_rel": 0.7441,
+        "diff_rel": 0.0293,
+        "diff_rel_ci": [
+          0.0012,
+          0.0574
+        ],
+        "base_pot": 1.481,
+        "arm_pot": 1.414,
+        "base_sec": 30.465,
+        "arm_sec": 59.024,
+        "base_sims": 2196.7,
+        "arm_sims": 4406.6
+      },
+      "enc:ENCOUNTER.QUEEN_BOSS": {
+        "n": 330,
+        "base_win": 0.7697,
+        "base_ci": [
+          0.7213,
+          0.8119
+        ],
+        "arm_win": 0.7636,
+        "arm_ci": [
+          0.7149,
+          0.8063
+        ],
+        "diff_win": -0.0061,
+        "diff_win_ci": [
+          -0.0407,
+          0.0286
+        ],
+        "arm_only": 16,
+        "base_only": 18,
+        "mcnemar_p": 0.86417,
+        "base_hp": 29.4,
+        "arm_hp": 30.29,
+        "diff_hp": 0.89,
+        "diff_hp_ci": [
+          -0.59,
+          2.37
+        ],
+        "both_won_n": 236,
+        "both_won_diff_hp": 1.15,
+        "both_won_diff_hp_ci": [
+          -0.75,
+          3.05
+        ],
+        "base_score": 0.6228,
+        "arm_score": 0.6239,
+        "diff_score": 0.0011,
+        "diff_score_ci": [
+          -0.0278,
+          0.0299
+        ],
+        "base_rel": 0.6925,
+        "arm_rel": 0.6925,
+        "diff_rel": 0.0,
+        "diff_rel_ci": [
+          -0.0307,
+          0.0308
+        ],
+        "base_pot": 1.476,
+        "arm_pot": 1.412,
+        "base_sec": 32.718,
+        "arm_sec": 63.199,
+        "base_sims": 2320.5,
+        "arm_sims": 4684.6
+      },
+      "boss2:ENCOUNTER.QUEEN_BOSS": {
+        "n": 144,
+        "base_win": 0.6319,
+        "base_ci": [
+          0.5507,
+          0.7063
+        ],
+        "arm_win": 0.6319,
+        "arm_ci": [
+          0.5507,
+          0.7063
+        ],
+        "diff_win": 0.0,
+        "diff_win_ci": [
+          -0.0611,
+          0.0611
+        ],
+        "arm_only": 10,
+        "base_only": 10,
+        "mcnemar_p": 1.0,
+        "base_hp": 17.38,
+        "arm_hp": 18.73,
+        "diff_hp": 1.35,
+        "diff_hp_ci": [
+          -0.74,
+          3.45
+        ],
+        "both_won_n": 81,
+        "both_won_diff_hp": 1.86,
+        "both_won_diff_hp_ci": [
+          -1.47,
+          5.19
+        ],
+        "base_score": 0.6319,
+        "arm_score": 0.6319,
+        "diff_score": 0.0,
+        "diff_score_ci": [
+          -0.0611,
+          0.0611
+        ],
+        "base_rel": 0.6319,
+        "arm_rel": 0.6319,
+        "diff_rel": 0.0,
+        "diff_rel_ci": [
+          -0.0611,
+          0.0611
+        ],
+        "base_pot": 1.451,
+        "arm_pot": 1.431,
+        "base_sec": 28.132,
+        "arm_sec": 54.088,
+        "base_sims": 2054.8,
+        "arm_sims": 4172.9
+      },
+      "boss1:ENCOUNTER.QUEEN_BOSS": {
+        "n": 186,
+        "base_win": 0.8763,
+        "base_ci": [
+          0.8213,
+          0.9162
+        ],
+        "arm_win": 0.8656,
+        "arm_ci": [
+          0.8091,
+          0.9073
+        ],
+        "diff_win": -0.0108,
+        "diff_win_ci": [
+          -0.0503,
+          0.0288
+        ],
+        "arm_only": 6,
+        "base_only": 8,
+        "mcnemar_p": 0.79053,
+        "base_hp": 38.71,
+        "arm_hp": 39.25,
+        "diff_hp": 0.54,
+        "diff_hp_ci": [
+          -1.54,
+          2.61
+        ],
+        "both_won_n": 155,
+        "both_won_diff_hp": 0.77,
+        "both_won_diff_hp_ci": [
+          -1.54,
+          3.09
+        ],
+        "base_score": 0.6157,
+        "arm_score": 0.6176,
+        "diff_score": 0.0019,
+        "diff_score_ci": [
+          -0.018,
+          0.0218
+        ],
+        "base_rel": 0.7394,
+        "arm_rel": 0.7395,
+        "diff_rel": 0.0001,
+        "diff_rel_ci": [
+          -0.0274,
+          0.0276
+        ],
+        "base_pot": 1.495,
+        "arm_pot": 1.398,
+        "base_sec": 36.269,
+        "arm_sec": 70.253,
+        "base_sims": 2526.2,
+        "arm_sims": 5080.7
+      },
+      "enc:ENCOUNTER.TEST_SUBJECT_BOSS": {
+        "n": 266,
+        "base_win": 0.797,
+        "base_ci": [
+          0.7446,
+          0.8409
+        ],
+        "arm_win": 0.8008,
+        "arm_ci": [
+          0.7486,
+          0.8443
+        ],
+        "diff_win": 0.0038,
+        "diff_win_ci": [
+          -0.0435,
+          0.051
+        ],
+        "arm_only": 21,
+        "base_only": 20,
+        "mcnemar_p": 1.0,
+        "base_hp": 33.8,
+        "arm_hp": 35.76,
+        "diff_hp": 1.95,
+        "diff_hp_ci": [
+          0.11,
+          3.8
+        ],
+        "both_won_n": 192,
+        "both_won_diff_hp": 1.8,
+        "both_won_diff_hp_ci": [
+          -0.25,
+          3.84
+        ],
+        "base_score": 0.6804,
+        "arm_score": 0.6884,
+        "diff_score": 0.008,
+        "diff_score_ci": [
+          -0.0323,
+          0.0483
+        ],
+        "base_rel": 0.7408,
+        "arm_rel": 0.7497,
+        "diff_rel": 0.0089,
+        "diff_rel_ci": [
+          -0.0337,
+          0.0515
+        ],
+        "base_pot": 1.041,
+        "arm_pot": 1.015,
+        "base_sec": 36.116,
+        "arm_sec": 69.961,
+        "base_sims": 2670.4,
+        "arm_sims": 5321.3
+      },
+      "boss2:ENCOUNTER.TEST_SUBJECT_BOSS": {
+        "n": 136,
+        "base_win": 0.6985,
+        "base_ci": [
+          0.6168,
+          0.7693
+        ],
+        "arm_win": 0.7132,
+        "arm_ci": [
+          0.6322,
+          0.7826
+        ],
+        "diff_win": 0.0147,
+        "diff_win_ci": [
+          -0.059,
+          0.0884
+        ],
+        "arm_only": 14,
+        "base_only": 12,
+        "mcnemar_p": 0.84502,
+        "base_hp": 24.19,
+        "arm_hp": 26.31,
+        "diff_hp": 2.12,
+        "diff_hp_ci": [
+          -0.47,
+          4.7
+        ],
+        "both_won_n": 83,
+        "both_won_diff_hp": 1.61,
+        "both_won_diff_hp_ci": [
+          -1.51,
+          4.74
+        ],
+        "base_score": 0.6985,
+        "arm_score": 0.7132,
+        "diff_score": 0.0147,
+        "diff_score_ci": [
+          -0.059,
+          0.0884
+        ],
+        "base_rel": 0.6985,
+        "arm_rel": 0.7132,
+        "diff_rel": 0.0147,
+        "diff_rel_ci": [
+          -0.059,
+          0.0884
+        ],
+        "base_pot": 0.904,
+        "arm_pot": 0.912,
+        "base_sec": 34.924,
+        "arm_sec": 66.602,
+        "base_sims": 2535.4,
+        "arm_sims": 5008.2
+      },
+      "boss1:ENCOUNTER.TEST_SUBJECT_BOSS": {
+        "n": 130,
+        "base_win": 0.9,
+        "base_ci": [
+          0.8364,
+          0.9406
+        ],
+        "arm_win": 0.8923,
+        "arm_ci": [
+          0.8273,
+          0.9348
+        ],
+        "diff_win": -0.0077,
+        "diff_win_ci": [
+          -0.0663,
+          0.0509
+        ],
+        "arm_only": 7,
+        "base_only": 8,
+        "mcnemar_p": 1.0,
+        "base_hp": 43.85,
+        "arm_hp": 45.64,
+        "diff_hp": 1.78,
+        "diff_hp_ci": [
+          -0.87,
+          4.44
+        ],
+        "both_won_n": 109,
+        "both_won_diff_hp": 1.94,
+        "both_won_diff_hp_ci": [
+          -0.78,
+          4.65
+        ],
+        "base_score": 0.6615,
+        "arm_score": 0.6625,
+        "diff_score": 0.001,
+        "diff_score_ci": [
+          -0.0286,
+          0.0305
+        ],
+        "base_rel": 0.785,
+        "arm_rel": 0.7878,
+        "diff_rel": 0.0028,
+        "diff_rel_ci": [
+          -0.0382,
+          0.0439
+        ],
+        "base_pot": 1.185,
+        "arm_pot": 1.123,
+        "base_sec": 37.363,
+        "arm_sec": 73.475,
+        "base_sims": 2811.7,
+        "arm_sims": 5648.9
+      }
+    },
+    "s256_vs_s64": {
+      "all_act3_boss": {
+        "n": 904,
+        "base_win": 0.7622,
+        "base_ci": [
+          0.7333,
+          0.7888
+        ],
+        "arm_win": 0.7677,
+        "arm_ci": [
+          0.7391,
+          0.7941
+        ],
+        "diff_win": 0.0055,
+        "diff_win_ci": [
+          -0.0169,
+          0.028
+        ],
+        "arm_only": 56,
+        "base_only": 51,
+        "mcnemar_p": 0.69917,
+        "base_hp": 30.78,
+        "arm_hp": 31.79,
+        "diff_hp": 1.01,
+        "diff_hp_ci": [
+          0.05,
+          1.97
+        ],
+        "both_won_n": 638,
+        "both_won_diff_hp": 1.07,
+        "both_won_diff_hp_ci": [
+          -0.12,
+          2.27
+        ],
+        "base_score": 0.6286,
+        "arm_score": 0.6294,
+        "diff_score": 0.0008,
+        "diff_score_ci": [
+          -0.0185,
+          0.0201
+        ],
+        "base_rel": 0.6951,
+        "arm_rel": 0.6987,
+        "diff_rel": 0.0036,
+        "diff_rel_ci": [
+          -0.0168,
+          0.024
+        ],
+        "base_pot": 1.31,
+        "arm_pot": 1.272,
+        "base_sec": 32.147,
+        "arm_sec": 123.487,
+        "base_sims": 2320.4,
+        "arm_sims": 9232.0
+      },
+      "boss1": {
+        "n": 478,
+        "base_win": 0.8703,
+        "base_ci": [
+          0.8372,
+          0.8975
+        ],
+        "arm_win": 0.8891,
+        "arm_ci": [
+          0.8578,
+          0.9142
+        ],
+        "diff_win": 0.0188,
+        "diff_win_ci": [
+          -0.0067,
+          0.0444
+        ],
+        "arm_only": 24,
+        "base_only": 15,
+        "mcnemar_p": 0.19959,
+        "base_hp": 41.03,
+        "arm_hp": 41.88,
+        "diff_hp": 0.86,
+        "diff_hp_ci": [
+          -0.55,
+          2.27
+        ],
+        "both_won_n": 401,
+        "both_won_diff_hp": 0.58,
+        "both_won_diff_hp_ci": [
+          -0.96,
+          2.11
+        ],
+        "base_score": 0.6177,
+        "arm_score": 0.6276,
+        "diff_score": 0.0099,
+        "diff_score_ci": [
+          -0.004,
+          0.0238
+        ],
+        "base_rel": 0.7434,
+        "arm_rel": 0.7586,
+        "diff_rel": 0.0152,
+        "diff_rel_ci": [
+          -0.0034,
+          0.0337
+        ],
+        "base_pot": 1.406,
+        "arm_pot": 1.339,
+        "base_sec": 34.6,
+        "arm_sec": 134.06,
+        "base_sims": 2492.2,
+        "arm_sims": 9947.4
+      },
+      "boss2_final": {
+        "n": 426,
+        "base_win": 0.6408,
+        "base_ci": [
+          0.5942,
+          0.685
+        ],
+        "arm_win": 0.6315,
+        "arm_ci": [
+          0.5847,
+          0.6759
+        ],
+        "diff_win": -0.0094,
+        "diff_win_ci": [
+          -0.0474,
+          0.0286
+        ],
+        "arm_only": 32,
+        "base_only": 36,
+        "mcnemar_p": 0.7163,
+        "base_hp": 19.28,
+        "arm_hp": 20.45,
+        "diff_hp": 1.18,
+        "diff_hp_ci": [
+          -0.11,
+          2.46
+        ],
+        "both_won_n": 237,
+        "both_won_diff_hp": 1.91,
+        "both_won_diff_hp_ci": [
+          0.01,
+          3.8
+        ],
+        "base_score": 0.6408,
+        "arm_score": 0.6315,
+        "diff_score": -0.0094,
+        "diff_score_ci": [
+          -0.0474,
+          0.0286
+        ],
+        "base_rel": 0.6408,
+        "arm_rel": 0.6315,
+        "diff_rel": -0.0094,
+        "diff_rel_ci": [
+          -0.0474,
+          0.0286
+        ],
+        "base_pot": 1.202,
+        "arm_pot": 1.197,
+        "base_sec": 29.396,
+        "arm_sec": 111.623,
+        "base_sims": 2127.7,
+        "arm_sims": 8429.3
+      },
+      "enc:ENCOUNTER.AEONGLASS_BOSS": {
+        "n": 308,
+        "base_win": 0.724,
+        "base_ci": [
+          0.6716,
+          0.771
+        ],
+        "arm_win": 0.7403,
+        "arm_ci": [
+          0.6885,
+          0.7861
+        ],
+        "diff_win": 0.0162,
+        "diff_win_ci": [
+          -0.0192,
+          0.0517
+        ],
+        "arm_only": 18,
+        "base_only": 13,
+        "mcnemar_p": 0.47313,
+        "base_hp": 29.64,
+        "arm_hp": 30.23,
+        "diff_hp": 0.59,
+        "diff_hp_ci": [
+          -0.99,
+          2.18
+        ],
+        "both_won_n": 210,
+        "both_won_diff_hp": 0.86,
+        "both_won_diff_hp_ci": [
+          -1.23,
+          2.95
+        ],
+        "base_score": 0.5901,
+        "arm_score": 0.5936,
+        "diff_score": 0.0035,
+        "diff_score_ci": [
+          -0.0266,
+          0.0335
+        ],
+        "base_rel": 0.6584,
+        "arm_rel": 0.6682,
+        "diff_rel": 0.0098,
+        "diff_rel_ci": [
+          -0.0222,
+          0.0417
+        ],
+        "base_pot": 1.364,
+        "arm_pot": 1.318,
+        "base_sec": 28.108,
+        "arm_sec": 108.172,
+        "base_sims": 2018.0,
+        "arm_sims": 8087.9
+      },
+      "boss2:ENCOUNTER.AEONGLASS_BOSS": {
+        "n": 146,
+        "base_win": 0.5959,
+        "base_ci": [
+          0.5148,
+          0.672
+        ],
+        "arm_win": 0.5753,
+        "arm_ci": [
+          0.4942,
+          0.6526
+        ],
+        "diff_win": -0.0205,
+        "diff_win_ci": [
+          -0.0792,
+          0.0381
+        ],
+        "arm_only": 8,
+        "base_only": 11,
+        "mcnemar_p": 0.64761,
+        "base_hp": 16.58,
+        "arm_hp": 17.92,
+        "diff_hp": 1.35,
+        "diff_hp_ci": [
+          -0.76,
+          3.46
+        ],
+        "both_won_n": 76,
+        "both_won_diff_hp": 3.96,
+        "both_won_diff_hp_ci": [
+          0.48,
+          7.44
+        ],
+        "base_score": 0.5959,
+        "arm_score": 0.5753,
+        "diff_score": -0.0205,
+        "diff_score_ci": [
+          -0.0792,
+          0.0381
+        ],
+        "base_rel": 0.5959,
+        "arm_rel": 0.5753,
+        "diff_rel": -0.0205,
+        "diff_rel_ci": [
+          -0.0792,
+          0.0381
+        ],
+        "base_pot": 1.233,
+        "arm_pot": 1.219,
+        "base_sec": 25.492,
+        "arm_sec": 96.572,
+        "base_sims": 1819.8,
+        "arm_sims": 7226.1
+      },
+      "boss1:ENCOUNTER.AEONGLASS_BOSS": {
+        "n": 162,
+        "base_win": 0.8395,
+        "base_ci": [
+          0.7752,
+          0.8881
+        ],
+        "arm_win": 0.8889,
+        "arm_ci": [
+          0.8312,
+          0.9286
+        ],
+        "diff_win": 0.0494,
+        "diff_win_ci": [
+          0.008,
+          0.0907
+        ],
+        "arm_only": 10,
+        "base_only": 2,
+        "mcnemar_p": 0.03857,
+        "base_hp": 41.42,
+        "arm_hp": 41.33,
+        "diff_hp": -0.09,
+        "diff_hp_ci": [
+          -2.43,
+          2.24
+        ],
+        "both_won_n": 134,
+        "both_won_diff_hp": -0.9,
+        "both_won_diff_hp_ci": [
+          -3.47,
+          1.68
+        ],
+        "base_score": 0.5849,
+        "arm_score": 0.61,
+        "diff_score": 0.0251,
+        "diff_score_ci": [
+          0.0035,
+          0.0467
+        ],
+        "base_rel": 0.7148,
+        "arm_rel": 0.7519,
+        "diff_rel": 0.0371,
+        "diff_rel_ci": [
+          0.0075,
+          0.0667
+        ],
+        "base_pot": 1.481,
+        "arm_pot": 1.407,
+        "base_sec": 30.465,
+        "arm_sec": 118.627,
+        "base_sims": 2196.7,
+        "arm_sims": 8864.6
+      },
+      "enc:ENCOUNTER.QUEEN_BOSS": {
+        "n": 330,
+        "base_win": 0.7697,
+        "base_ci": [
+          0.7213,
+          0.8119
+        ],
+        "arm_win": 0.7667,
+        "arm_ci": [
+          0.7181,
+          0.8091
+        ],
+        "diff_win": -0.003,
+        "diff_win_ci": [
+          -0.0382,
+          0.0322
+        ],
+        "arm_only": 17,
+        "base_only": 18,
+        "mcnemar_p": 1.0,
+        "base_hp": 29.4,
+        "arm_hp": 29.78,
+        "diff_hp": 0.38,
+        "diff_hp_ci": [
+          -1.16,
+          1.91
+        ],
+        "both_won_n": 236,
+        "both_won_diff_hp": 0.35,
+        "both_won_diff_hp_ci": [
+          -1.67,
+          2.36
+        ],
+        "base_score": 0.6228,
+        "arm_score": 0.6174,
+        "diff_score": -0.0054,
+        "diff_score_ci": [
+          -0.0361,
+          0.0253
+        ],
+        "base_rel": 0.6925,
+        "arm_rel": 0.6874,
+        "diff_rel": -0.0051,
+        "diff_rel_ci": [
+          -0.0375,
+          0.0273
+        ],
+        "base_pot": 1.476,
+        "arm_pot": 1.43,
+        "base_sec": 32.718,
+        "arm_sec": 126.535,
+        "base_sims": 2320.5,
+        "arm_sims": 9323.8
+      },
+      "boss2:ENCOUNTER.QUEEN_BOSS": {
+        "n": 144,
+        "base_win": 0.6319,
+        "base_ci": [
+          0.5507,
+          0.7063
+        ],
+        "arm_win": 0.6111,
+        "arm_ci": [
+          0.5296,
+          0.6869
+        ],
+        "diff_win": -0.0208,
+        "diff_win_ci": [
+          -0.0862,
+          0.0446
+        ],
+        "arm_only": 10,
+        "base_only": 13,
+        "mcnemar_p": 0.67764,
+        "base_hp": 17.38,
+        "arm_hp": 17.51,
+        "diff_hp": 0.14,
+        "diff_hp_ci": [
+          -1.81,
+          2.09
+        ],
+        "both_won_n": 78,
+        "both_won_diff_hp": 0.01,
+        "both_won_diff_hp_ci": [
+          -3.32,
+          3.35
+        ],
+        "base_score": 0.6319,
+        "arm_score": 0.6111,
+        "diff_score": -0.0208,
+        "diff_score_ci": [
+          -0.0862,
+          0.0446
+        ],
+        "base_rel": 0.6319,
+        "arm_rel": 0.6111,
+        "diff_rel": -0.0208,
+        "diff_rel_ci": [
+          -0.0862,
+          0.0446
+        ],
+        "base_pot": 1.451,
+        "arm_pot": 1.444,
+        "base_sec": 28.132,
+        "arm_sec": 108.147,
+        "base_sims": 2054.8,
+        "arm_sims": 8292.1
+      },
+      "boss1:ENCOUNTER.QUEEN_BOSS": {
+        "n": 186,
+        "base_win": 0.8763,
+        "base_ci": [
+          0.8213,
+          0.9162
+        ],
+        "arm_win": 0.8871,
+        "arm_ci": [
+          0.8336,
+          0.925
+        ],
+        "diff_win": 0.0108,
+        "diff_win_ci": [
+          -0.0258,
+          0.0473
+        ],
+        "arm_only": 7,
+        "base_only": 5,
+        "mcnemar_p": 0.77441,
+        "base_hp": 38.71,
+        "arm_hp": 39.27,
+        "diff_hp": 0.56,
+        "diff_hp_ci": [
+          -1.71,
+          2.83
+        ],
+        "both_won_n": 158,
+        "both_won_diff_hp": 0.51,
+        "both_won_diff_hp_ci": [
+          -2.01,
+          3.04
+        ],
+        "base_score": 0.6157,
+        "arm_score": 0.6222,
+        "diff_score": 0.0065,
+        "diff_score_ci": [
+          -0.0137,
+          0.0267
+        ],
+        "base_rel": 0.7394,
+        "arm_rel": 0.7465,
+        "diff_rel": 0.0071,
+        "diff_rel_ci": [
+          -0.0201,
+          0.0344
+        ],
+        "base_pot": 1.495,
+        "arm_pot": 1.419,
+        "base_sec": 36.269,
+        "arm_sec": 140.771,
+        "base_sims": 2526.2,
+        "arm_sims": 10122.6
+      },
+      "enc:ENCOUNTER.TEST_SUBJECT_BOSS": {
+        "n": 266,
+        "base_win": 0.797,
+        "base_ci": [
+          0.7446,
+          0.8409
+        ],
+        "arm_win": 0.8008,
+        "arm_ci": [
+          0.7486,
+          0.8443
+        ],
+        "diff_win": 0.0038,
+        "diff_win_ci": [
+          -0.0435,
+          0.051
+        ],
+        "arm_only": 21,
+        "base_only": 20,
+        "mcnemar_p": 1.0,
+        "base_hp": 33.8,
+        "arm_hp": 36.08,
+        "diff_hp": 2.27,
+        "diff_hp_ci": [
+          0.37,
+          4.18
+        ],
+        "both_won_n": 192,
+        "both_won_diff_hp": 2.19,
+        "both_won_diff_hp_ci": [
+          0.1,
+          4.29
+        ],
+        "base_score": 0.6804,
+        "arm_score": 0.6859,
+        "diff_score": 0.0055,
+        "diff_score_ci": [
+          -0.0353,
+          0.0463
+        ],
+        "base_rel": 0.7408,
+        "arm_rel": 0.748,
+        "diff_rel": 0.0072,
+        "diff_rel_ci": [
+          -0.0356,
+          0.05
+        ],
+        "base_pot": 1.041,
+        "arm_pot": 1.023,
+        "base_sec": 36.116,
+        "arm_sec": 137.439,
+        "base_sims": 2670.4,
+        "arm_sims": 10442.9
+      },
+      "boss2:ENCOUNTER.TEST_SUBJECT_BOSS": {
+        "n": 136,
+        "base_win": 0.6985,
+        "base_ci": [
+          0.6168,
+          0.7693
+        ],
+        "arm_win": 0.7132,
+        "arm_ci": [
+          0.6322,
+          0.7826
+        ],
+        "diff_win": 0.0147,
+        "diff_win_ci": [
+          -0.059,
+          0.0884
+        ],
+        "arm_only": 14,
+        "base_only": 12,
+        "mcnemar_p": 0.84502,
+        "base_hp": 24.19,
+        "arm_hp": 26.28,
+        "diff_hp": 2.09,
+        "diff_hp_ci": [
+          -0.51,
+          4.69
+        ],
+        "both_won_n": 83,
+        "both_won_diff_hp": 1.81,
+        "both_won_diff_hp_ci": [
+          -1.21,
+          4.83
+        ],
+        "base_score": 0.6985,
+        "arm_score": 0.7132,
+        "diff_score": 0.0147,
+        "diff_score_ci": [
+          -0.059,
+          0.0884
+        ],
+        "base_rel": 0.6985,
+        "arm_rel": 0.7132,
+        "diff_rel": 0.0147,
+        "diff_rel_ci": [
+          -0.059,
+          0.0884
+        ],
+        "base_pot": 0.904,
+        "arm_pot": 0.912,
+        "base_sec": 34.924,
+        "arm_sec": 131.463,
+        "base_sims": 2535.4,
+        "arm_sims": 9866.2
+      },
+      "boss1:ENCOUNTER.TEST_SUBJECT_BOSS": {
+        "n": 130,
+        "base_win": 0.9,
+        "base_ci": [
+          0.8364,
+          0.9406
+        ],
+        "arm_win": 0.8923,
+        "arm_ci": [
+          0.8273,
+          0.9348
+        ],
+        "diff_win": -0.0077,
+        "diff_win_ci": [
+          -0.0663,
+          0.0509
+        ],
+        "arm_only": 7,
+        "base_only": 8,
+        "mcnemar_p": 1.0,
+        "base_hp": 43.85,
+        "arm_hp": 46.32,
+        "diff_hp": 2.47,
+        "diff_hp_ci": [
+          -0.33,
+          5.27
+        ],
+        "both_won_n": 109,
+        "both_won_diff_hp": 2.49,
+        "both_won_diff_hp_ci": [
+          -0.42,
+          5.39
+        ],
+        "base_score": 0.6615,
+        "arm_score": 0.6573,
+        "diff_score": -0.0042,
+        "diff_score_ci": [
+          -0.0365,
+          0.0281
+        ],
+        "base_rel": 0.785,
+        "arm_rel": 0.7843,
+        "diff_rel": -0.0007,
+        "diff_rel_ci": [
+          -0.0426,
+          0.0412
+        ],
+        "base_pot": 1.185,
+        "arm_pot": 1.138,
+        "base_sec": 37.363,
+        "arm_sec": 143.691,
+        "base_sims": 2811.7,
+        "arm_sims": 11046.2
+      }
+    },
+    "s256_vs_s128": {
+      "all_act3_boss": {
+        "n": 904,
+        "base_win": 0.7644,
+        "base_ci": [
+          0.7356,
+          0.7909
+        ],
+        "arm_win": 0.7677,
+        "arm_ci": [
+          0.7391,
+          0.7941
+        ],
+        "diff_win": 0.0033,
+        "diff_win_ci": [
+          -0.0171,
+          0.0238
+        ],
+        "arm_only": 46,
+        "base_only": 43,
+        "mcnemar_p": 0.83226,
+        "base_hp": 32.14,
+        "arm_hp": 31.79,
+        "diff_hp": -0.35,
+        "diff_hp_ci": [
+          -1.31,
+          0.61
+        ],
+        "both_won_n": 648,
+        "both_won_diff_hp": -0.59,
+        "both_won_diff_hp_ci": [
+          -1.8,
+          0.63
+        ],
+        "base_score": 0.6313,
+        "arm_score": 0.6294,
+        "diff_score": -0.0018,
+        "diff_score_ci": [
+          -0.0194,
+          0.0157
+        ],
+        "base_rel": 0.6997,
+        "arm_rel": 0.6987,
+        "diff_rel": -0.001,
+        "diff_rel_ci": [
+          -0.0195,
+          0.0175
+        ],
+        "base_pot": 1.271,
+        "arm_pot": 1.272,
+        "base_sec": 62.153,
+        "arm_sec": 123.487,
+        "base_sims": 4653.0,
+        "arm_sims": 9232.0
+      },
+      "boss1": {
+        "n": 478,
+        "base_win": 0.8766,
+        "base_ci": [
+          0.844,
+          0.9031
+        ],
+        "arm_win": 0.8891,
+        "arm_ci": [
+          0.8578,
+          0.9142
+        ],
+        "diff_win": 0.0126,
+        "diff_win_ci": [
+          -0.0114,
+          0.0365
+        ],
+        "arm_only": 20,
+        "base_only": 14,
+        "mcnemar_p": 0.39153,
+        "base_hp": 42.24,
+        "arm_hp": 41.88,
+        "diff_hp": -0.36,
+        "diff_hp_ci": [
+          -1.86,
+          1.15
+        ],
+        "both_won_n": 405,
+        "both_won_diff_hp": -0.82,
+        "both_won_diff_hp_ci": [
+          -2.46,
+          0.82
+        ],
+        "base_score": 0.6248,
+        "arm_score": 0.6276,
+        "diff_score": 0.0028,
+        "diff_score_ci": [
+          -0.0103,
+          0.0159
+        ],
+        "base_rel": 0.7542,
+        "arm_rel": 0.7586,
+        "diff_rel": 0.0044,
+        "diff_rel_ci": [
+          -0.0129,
+          0.0218
+        ],
+        "base_pot": 1.328,
+        "arm_pot": 1.339,
+        "base_sec": 67.323,
+        "arm_sec": 134.06,
+        "base_sims": 5006.7,
+        "arm_sims": 9947.4
+      },
+      "boss2_final": {
+        "n": 426,
+        "base_win": 0.6385,
+        "base_ci": [
+          0.5918,
+          0.6827
+        ],
+        "arm_win": 0.6315,
+        "arm_ci": [
+          0.5847,
+          0.6759
+        ],
+        "diff_win": -0.007,
+        "diff_win_ci": [
+          -0.0412,
+          0.0271
+        ],
+        "arm_only": 26,
+        "base_only": 29,
+        "mcnemar_p": 0.78771,
+        "base_hp": 20.8,
+        "arm_hp": 20.45,
+        "diff_hp": -0.35,
+        "diff_hp_ci": [
+          -1.49,
+          0.8
+        ],
+        "both_won_n": 243,
+        "both_won_diff_hp": -0.2,
+        "both_won_diff_hp_ci": [
+          -1.95,
+          1.55
+        ],
+        "base_score": 0.6385,
+        "arm_score": 0.6315,
+        "diff_score": -0.007,
+        "diff_score_ci": [
+          -0.0412,
+          0.0271
+        ],
+        "base_rel": 0.6385,
+        "arm_rel": 0.6315,
+        "diff_rel": -0.007,
+        "diff_rel_ci": [
+          -0.0412,
+          0.0271
+        ],
+        "base_pot": 1.207,
+        "arm_pot": 1.197,
+        "base_sec": 56.35,
+        "arm_sec": 111.623,
+        "base_sims": 4256.0,
+        "arm_sims": 8429.3
+      }
+    }
+  }
+}

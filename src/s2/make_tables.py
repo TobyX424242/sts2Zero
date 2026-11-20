@@ -17,7 +17,7 @@ sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.join(ROOT, "s0"))
 import numpy as np  # noqa: E402
 import orjson  # noqa: E402
-import make_tf_tables as m1  # noqa: E402  (sets up the S1 imports)
+import make_tf_tables as m1  # noqa: E402  (sets up value_v1 / value_v2 imports)
 
 bfd, S, FIELDS, GOLD, ROOM_IDX, ERA = m1.bfd, m1.S, m1.FIELDS, m1.GOLD, m1.ROOM_IDX, m1.ERA_V0111
 ROWS_PER_CALL = 400_000

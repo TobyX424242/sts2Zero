@@ -57,8 +57,23 @@ public sealed class FightOutcome
     /// the macro value network ("boss2": the double-boss model). Logged by S3 only when the options are on.</summary>
     public double DeathValue;
     public string? TfKind;
+    /// <summary>The expectation at the fight's start (2026-11-17, PROPOSAL §6.1 step 9; log only): the network's root
+    /// value of the first move that has a network evaluation (<see cref="RootV0"/>) and the root Q of the first searched
+    /// move (<see cref="RootQ0"/>, normally the same move). Relative T_f (x <see cref="TMax"/> for value units); NaN = unset.</summary>
+    public double RootV0 = double.NaN, RootQ0 = double.NaN;
+    /// <summary>S3 potion_reserve: T_max of the fight's table before the reservation price (NaN = not applied).</summary>
+    public double ReserveTMax0 = double.NaN;
     public List<Decision> Records = new();
+    /// <summary>ic113 warm-up: cards played in this fight by card id (FightRunner.PlayAsync only).</summary>
+    public Dictionary<string, int>? Played;
     public bool Survived => Result == "won";
+
+    /// <summary>Sets <see cref="RootV0"/> / <see cref="RootQ0"/> from the first move that has them.</summary>
+    public void NoteRoot(NetSearchResult r)
+    {
+        if (r.RootEval is not null && double.IsNaN(RootV0)) RootV0 = r.RootEval.Value;
+        if (r.Simulations > 0 && double.IsNaN(RootQ0)) RootQ0 = r.RootQ;
+    }
 }
 
 public static class FightRunner
@@ -108,6 +123,7 @@ public static class FightRunner
                 o.Simulations += r.Simulations; o.Leaves += r.Leaves; o.Steps += r.StepsApplied;
                 if (r.RootEval is not null) { o.ModelVersion = r.RootEval.ModelVersion; }
                 if (r.Simulations > 0) { o.Searched++; o.RootQSum += r.RootQ; }
+                o.NoteRoot(r);
                 if (fcfg.Record && r.RootActions.Count > 1)
                 {
                     var d = Encode(state, r, vocab, full, signals);
@@ -115,6 +131,12 @@ public static class FightRunner
                     o.Records.Add(d);
                 }
                 if (r.Action.Kind == ActionKind.UsePotion) o.PotionsUsed++;
+                if (r.Action.Kind == ActionKind.PlayCard)
+                {
+                    o.Played ??= new Dictionary<string, int>(StringComparer.Ordinal);
+                    string cid = r.Action.Source.Split('#')[0];
+                    o.Played[cid] = o.Played.GetValueOrDefault(cid) + 1;
+                }
                 if (!await ActionSpace.ApplyAsync(state, r.Action)) { o.Error = "chosen action not applicable: " + r.Action.Key; break; }
                 o.Decisions++;
             }
@@ -161,6 +183,8 @@ public static class FightRunner
         ["decisions"] = o.Decisions, ["searched"] = o.Searched, ["simulations"] = o.Simulations, ["leaves"] = o.Leaves,
         ["steps"] = o.Steps, ["mean_root_q"] = o.Searched > 0 ? Math.Round(o.RootQSum / o.Searched, 4) : null,
         ["model_version"] = o.ModelVersion, ["seconds"] = Math.Round(o.Seconds, 3), ["records"] = o.Records.Count,
+        ["root_v0"] = double.IsNaN(o.RootV0) ? null : Math.Round(o.RootV0, 5),
+        ["root_q0"] = double.IsNaN(o.RootQ0) ? null : Math.Round(o.RootQ0, 5),
     };
 }
 

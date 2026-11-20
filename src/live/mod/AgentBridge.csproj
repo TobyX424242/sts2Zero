@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    AgentBridge: Slay the Spire 2 (v0.113.1) mod that lets the LiveAgent controller play the real game.
+    Build:   ../install_mod.sh build      (or: dotnet build -c Release)
+    The game's assemblies are referenced in place (Private=false): nothing from the game is copied or committed.
+    Override the game folder with -p:STS2GameDir="/path/to/Slay the Spire 2".
+  -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <AssemblyName>AgentBridge</AssemblyName>
+    <RootNamespace>AgentBridge</RootNamespace>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <Version>1.0.0</Version>
+    <!-- the decompiled game uses many nullable-annotated APIs; keep warnings visible but not fatal -->
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <STS2GameDir Condition="'$(STS2GameDir)' == ''">/mnt/4dbcffbd-bd6e-43c4-bc27-9274605ea5e4/SteamLibrary/steamapps/common/Slay the Spire 2</STS2GameDir>
+    <STS2DataDir Condition="'$(STS2DataDir)' == '' and Exists('$(STS2GameDir)/data_sts2_linuxbsd_x86_64/sts2.dll')">$(STS2GameDir)/data_sts2_linuxbsd_x86_64</STS2DataDir>
+    <STS2DataDir Condition="'$(STS2DataDir)' == '' and Exists('$(STS2GameDir)/data_sts2_windows_x86_64/sts2.dll')">$(STS2GameDir)/data_sts2_windows_x86_64</STS2DataDir>
+    <STS2DataDir Condition="'$(STS2DataDir)' == ''">$(STS2GameDir)/data_sts2_linuxbsd_x86_64</STS2DataDir>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="sts2">
+      <HintPath>$(STS2DataDir)/sts2.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="GodotSharp">
+      <HintPath>$(STS2DataDir)/GodotSharp.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="AgentBridge.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

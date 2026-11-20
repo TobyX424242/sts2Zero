@@ -69,7 +69,7 @@ def main():
     ap.add_argument("--prefix", default="/dev/shm/s2_a")
     ap.add_argument("--actors", type=int, default=1)
     ap.add_argument("--capacity", type=int, default=256)
-    ap.add_argument("--vocab", default=os.path.join(HERE, "..", "..", "s0", "data", "combat_vocab_v1.json"))
+    ap.add_argument("--vocab", default=os.path.join(HERE, "..", "..", "s0", "data", "combat_vocab_v113.json"))
     ap.add_argument("--weights", default="")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     ap.add_argument("--dtype", default="bf16")

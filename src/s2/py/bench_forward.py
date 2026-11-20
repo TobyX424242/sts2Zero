@@ -3,7 +3,7 @@ import os, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__)); sys.path.insert(0, HERE); sys.dont_write_bytecode = True
 import numpy as np, torch
 from model import load_net, co
-vocab = co.load_vocab(os.path.join(HERE, "../../s0/data/combat_vocab_v1.json"))
+vocab = co.load_vocab(os.path.join(HERE, "../../s0/data/combat_vocab_v113.json"))
 obs, act = co.load_arrays(os.path.join(HERE, "../../s0/data/obs_v3_1000"))
 net = load_net(vocab).cuda().eval()
 def bench(fn, B, reps=50):

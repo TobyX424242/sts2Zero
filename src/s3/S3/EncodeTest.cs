@@ -31,7 +31,7 @@ public static class EncodeTest
 {
     private sealed record CardSnap(CardModel Ref, string Id, int Upg, string Ench, int Eamt, int Floor);
 
-    private sealed class Recorder(RunAgent agent, RunState run, Player p) : IRunDecisionSource, ICombatCompletionValidator
+    private sealed class Recorder(RunAgent agent, RunState run, Player p, MacroVocab mvocab) : IRunDecisionSource, ICombatCompletionValidator
     {
         public readonly List<List<Dictionary<string, object?>>> Acts = new();
         private List<CardSnap> _deck = new();
@@ -80,12 +80,17 @@ public static class EncodeTest
             var now = Deck();
             var prev = _deck.ToDictionary(c => c.Ref, c => c, ReferenceEqualityComparer.Instance);
             var cur = now.ToDictionary(c => c.Ref, c => c, ReferenceEqualityComparer.Instance);
-            var gained = now.Where(c => !prev.ContainsKey(c.Ref)).Select(CardJson).ToList();
-            var removed = _deck.Where(c => !cur.ContainsKey(c.Ref)).Select(CardJson).ToList();
+            // a card that left the deck and came back as the same object within the floor (Thieving Hopper's Swipe: the
+            // stolen deck card returns as a SpecialCardReward and CardPileCmd sets FloorAddedToDeck to this floor) is
+            // logged as removed (its old entry) and gained (its new one), so the log-based rebuild keeps it on the floors
+            // between its first gain and its return instead of dropping it as a future card (ic113 round trip)
+            var readded = now.Where(c => prev.TryGetValue(c.Ref, out CardSnap? b) && b.Floor != c.Floor).ToList();
+            var gained = now.Where(c => !prev.ContainsKey(c.Ref)).Concat(readded).Select(CardJson).ToList();
+            var removed = _deck.Where(c => !cur.ContainsKey(c.Ref) || readded.Any(x => ReferenceEquals(x.Ref, c.Ref))).Select(CardJson).ToList();
             var upgraded = new List<string>(); var downgraded = new List<string>(); var enchanted = new List<object>();
             foreach (CardSnap c in now)
             {
-                if (!prev.TryGetValue(c.Ref, out CardSnap? b)) continue;
+                if (!prev.TryGetValue(c.Ref, out CardSnap? b) || b.Floor != c.Floor) continue;   // re-added: logged above in full
                 for (int i = b.Upg; i < c.Upg; i++) upgraded.Add(c.Id);
                 for (int i = c.Upg; i < b.Upg; i++) downgraded.Add(c.Id);
                 if (c.Ench != "" && b.Ench == "")
@@ -119,21 +124,93 @@ public static class EncodeTest
 
         public Dictionary<string, object?> RunJson(string seed, bool won, int ascension, Dictionary<RelicModel, int> relicFloor) => new()
         {
-            ["run_hash"] = seed, ["seed"] = seed, ["build_id"] = "v0.111.0", ["ascension"] = ascension, ["win"] = won,
+            ["run_hash"] = seed, ["seed"] = seed, ["build_id"] = ML.BuildId, ["era"] = ML.Era, ["ascension"] = ascension, ["win"] = won,
             ["acts"] = run.Acts.Select(a => "ACT." + a.GetType().Name.ToUpperInvariant()).ToList(),
             ["map_point_history"] = Acts,
             ["players"] = new[]
             {
                 new Dictionary<string, object?>
                 {
-                    ["character"] = "CHARACTER.DEFECT", ["deck"] = Deck().Select(CardJson).ToList(),
+                    ["character"] = p.Character.Id.ToString(), ["deck"] = Deck().Select(CardJson).ToList(),
                     ["relics"] = p.Relics.Select(r => new Dictionary<string, object?> { ["id"] = r.Id.ToString(), ["floor_added_to_deck"] = relicFloor.GetValueOrDefault(r, 1) }).ToList(),
                 },
             },
         };
 
         public void OnRoomResolved(MapPoint pt, RoomType rt) { agent.OnRoomResolved(pt, rt); EndFloor(); }
-        public Task<MapPoint> ChooseMapPointAsync(IReadOnlyList<MapPoint> options) { EndFloor(); return agent.ChooseMapPointAsync(options); }
+
+        public async Task<MapPoint> ChooseMapPointAsync(IReadOnlyList<MapPoint> options)
+        {
+            EndFloor();
+            int before = agent.Rec.Steps.Count;
+            MapPoint chosen = await agent.ChooseMapPointAsync(options);
+            NoteMapDecision(options, before);
+            return chosen;
+        }
+
+        // ---- layout v2 printout: the recorded map decisions (as text) and the act maps they were taken on
+
+        /// <summary>Act index and text of every recorded map decision of the run, in play order.</summary>
+        public readonly List<(int Act, string Text)> MapNotes = new();
+        public readonly Dictionary<int, string> MapTexts = new();
+
+        private static char Letter(MapPointType t) => t switch
+        {
+            MapPointType.Monster => 'M', MapPointType.Elite => 'E', MapPointType.RestSite => 'R', MapPointType.Shop => '$',
+            MapPointType.Treasure => 'T', MapPointType.Unknown => '?', MapPointType.Ancient => 'A', MapPointType.Boss => 'B', _ => '.',
+        };
+
+        private string MapText()
+        {
+            ActMap map = run.Map;
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"map of act {run.CurrentActIndex + 1}: boss at row {map.BossMapPoint.coord.row}" +
+                (map.SecondBossMapPoint is { } s ? $", second boss at row {s.coord.row}" : "") +
+                "; per point c<column><type>><columns of its children> (M monster, E elite, R rest site, $ shop, T treasure, ? unknown, B boss)");
+            for (int row = map.GetRowCount() - 1; row >= 0; row--)
+            {
+                var pts = map.GetPointsInRow(row).Where(q => q.Children.Count > 0 || q.parents.Count > 0).ToList();
+                if (pts.Count == 0) continue;
+                sb.AppendLine($"  row {row,2}: " + string.Join("  ", pts.Select(q => $"c{q.coord.col}{Letter(q.PointType)}>" +
+                    string.Join(",", q.Children.OrderBy(c => c.coord.col).Select(c => c.PointType == MapPointType.Boss ? "B" : c.coord.col.ToString())))));
+            }
+            return sb.ToString().TrimEnd();
+        }
+
+        /// <summary>Text of the map decision the agent just recorded (none when there was a single option): the layout v2
+        /// inputs read back from the recorded row, next to the options in the agent's order (column, then row).</summary>
+        private void NoteMapDecision(IReadOnlyList<MapPoint> options, int stepsBefore)
+        {
+            MacroStep? st = null;
+            for (int i = stepsBefore; i < agent.Rec.Steps.Count; i++)
+                if (agent.Rec.Steps[i] is { Kind: 1, Dtype: ML.DMap } x) st = x;
+            if (st is null) return;
+            int act = run.CurrentActIndex;
+            if (!MapTexts.ContainsKey(act)) MapTexts[act] = MapText();
+            MacroRow r = st.Row;
+            MacroVocab mv = mvocab;
+            ReadOnlySpan<float> x2 = r.F.AsSpan(ML.FScal2, ML.NS2);
+            var ci = System.Globalization.CultureInfo.InvariantCulture;
+            var sb = new System.Text.StringBuilder();
+            MapPoint? here = run.CurrentMapPoint;
+            sb.AppendLine($"map decision {agent.Rec.Seed} floor {st.Floor} act {act + 1} at " +
+                (here is null ? "the act start" : $"row {here.coord.row} c{here.coord.col} {here.PointType}") +
+                $", hp {p.Creature.CurrentHp}/{p.Creature.MaxHp}: boss {r.I[ML.OBoss]} '{mv.Name("encounter", r.I[ML.OBoss])}', boss2 {r.I[ML.OBoss2]} '{mv.Name("encounter", r.I[ML.OBoss2])}'" +
+                $" (simulator: '{MacroEncoder.EncounterId(run.CurrentActBossEncounter)}', '{MacroEncoder.EncounterId(run.CurrentActSecondBossEncounter)}')");
+            sb.AppendLine($"    scalars: elites {x2[ML.XElites] * 4:0.##} rests {x2[ML.XRests] * 4:0.##} shops {x2[ML.XShops] * 3:0.##} (this act), " +
+                $"free potion slots {x2[ML.XPotFree] * 3:0.##} of {x2[ML.XPotSlots] * 5:0.##}, map row {x2[ML.XMapRow] * 16:0.##}; raw [" +
+                string.Join(" ", x2.ToArray().Select(v => v.ToString("0.###", ci))) + "]");
+            var sorted = options.OrderBy(o => o.coord.col).ThenBy(o => o.coord.row).Take(ML.K).ToList();
+            for (int j = 0; j < Math.Min(sorted.Count, r.NOptions); j++)
+            {
+                float[] f = r.F.AsSpan(ML.FOptFeat2 + j * ML.MF2, ML.MF2).ToArray();
+                sb.AppendLine($"    {(j == st.Chosen ? "*" : " ")} option {j}: row {sorted[j].coord.row} c{sorted[j].coord.col} {sorted[j].PointType,-8} " +
+                    $"rest in {f[0] * 8:0.##}, shop in {(f[1] >= 1f ? "8+/none" : (f[1] * 8).ToString("0.##", ci))}, to the first rest: elites >= {f[2] * 3:0.##}, fights >= {f[3] * 5:0.##}; " +
+                    $"elites in 3 rows <= {f[4] * 3:0.##}; elite>rest {f[5]:0}, rest>elite {f[6]:0}; boss in {f[7] * 16:0.##}; raw [" +
+                    string.Join(" ", f.Select(v => v.ToString("0.###", ci))) + "]");
+            }
+            MapNotes.Add((act, sb.ToString().TrimEnd()));
+        }
 
         public Task<CombatDecision> ChooseCombatActionAsync(CombatState state)
         {
@@ -155,8 +232,12 @@ public static class EncodeTest
         public Task<EventOption> ChooseEventOptionAsync(IReadOnlyList<EventOption> options) { NoteRoom(); return agent.ChooseEventOptionAsync(options); }
     }
 
-    public static async Task<int> Run(string outDir, int runs, int ascension, string mvocabPath)
+    /// <param name="maps">Layout v2 printout: this many map decisions of the first run that finished are printed
+    /// (spread evenly over the run, with the act maps they were taken on); 0 = none.</param>
+    public static async Task<int> Run(string outDir, int runs, int ascension, string mvocabPath, int maps = 8, string character = "defect")
     {
+        string charId = character.StartsWith("CHARACTER.", StringComparison.Ordinal) ? character : "CHARACTER." + character.ToUpperInvariant();
+        var characterModel = ModelDb.GetById<CharacterModel>(ModelId.Deserialize(charId));
         Directory.CreateDirectory(outDir);
         var mvocab = new MacroVocab(mvocabPath);
         var services = new ActorServices
@@ -166,17 +247,23 @@ public static class EncodeTest
             Cfg = new AgentConfig { Ascension = ascension, SimsFull = 0, SimsFast = 0, RecordCombat = false },
         };
         using var rowsOut = new StreamWriter(Path.Combine(outDir, "rows.jsonl"));
+        // layout v3: every recorded row (floor states and decisions) with the map nodes and fights the encoder meant to
+        // pack, for src/s3/py/layout3_check.py --encode DIR (it unpacks the rows and compares)
+        using var rows3Out = new StreamWriter(Path.Combine(outDir, "rows3.jsonl"));
+        MacroEncoder.Debug = true;
+        long rows3 = 0;
         using var runsOut = new StreamWriter(Path.Combine(outDir, "runs.jsonl"));
         int won = 0, errors = 0; long floors = 0, rows = 0;
         var kinds = new Dictionary<string, int>();
+        bool mapsPrinted = maps <= 0;
         for (int i = 0; i < runs; i++)
         {
             string seed = $"ENC{i:D5}";
             var run = new RunState(seed, ActDefinition.GetRandomList(seed), ascensionLevel: ascension);
-            var player = Player.CreateForNewRun(ModelDb.Character<Defect>(), run);
+            var player = Player.CreateForNewRun(characterModel, run);
             run.AddPlayer(player);
             var agent = new RunAgent(services, run, player, seed, perturbed: false);
-            var rec = new Recorder(agent, run, player);
+            var rec = new Recorder(agent, run, player, mvocab);
             var driver = new RunDriver(run, rec);
             driver.OnRoomResolved += rec.OnRoomResolved;
             bool win = false;
@@ -184,9 +271,30 @@ public static class EncodeTest
             catch (Exception e) { agent.Fail(e); errors++; Console.WriteLine($"run {seed} error at floor {run.TotalFloor}: {e.GetType().Name}: {e.Message}"); continue; }
             if (win) won++;
             floors += run.TotalFloor;
+            if (!mapsPrinted && rec.MapNotes.Count > 0)
+            {
+                mapsPrinted = true;
+                int n = rec.MapNotes.Count, k = Math.Min(maps, n), lastAct = -1;
+                Console.WriteLine($"layout v2 (ints {ML.IW}, floats {ML.FW}; boss ids at {ML.OBoss}, option features from {ML.FOptFeat2}, scalars from {ML.FScal2}): " +
+                    $"{k} of the {n} map decisions of run {seed} (ascension {ascension}, {run.TotalFloor} floors, {(win ? "won" : "lost")})");
+                for (int j = 0; j < k; j++)
+                {
+                    var (act, text) = rec.MapNotes[k == 1 ? 0 : (int)Math.Round(j * (n - 1) / (double)(k - 1))];
+                    if (act != lastAct) { lastAct = act; Console.WriteLine(rec.MapTexts[act]); }
+                    Console.WriteLine(text);
+                }
+            }
             var relicFloor = new Dictionary<RelicModel, int>(ReferenceEqualityComparer.Instance);
             foreach (MacroStep s in agent.Rec.Steps)
             {
+                rows3Out.WriteLine(JsonSerializer.Serialize(new
+                {
+                    run = seed, floor = s.Floor, act = s.Act, kind = s.Kind, dtype = s.Dtype, chosen = s.Chosen, nopt = s.Row.NOptions,
+                    ints = s.Row.I, floats = s.Row.F,
+                    map = (s.Row.DbgMap ?? Array.Empty<MapNode>()).Select(m => new[] { (int)m.Type + 1, m.Row, m.Col, m.Visited ? 1 : 0, m.Current ? 1 : 0, m.Reachable ? 1 : 0, m.Mask }),
+                    fights = (s.Row.DbgFights ?? Array.Empty<FightNote>()).Select(f => new object[] { f.EncTok, f.Encounter, f.Room, f.StartHp, f.EndHp, f.MaxHpStart, f.Potions, f.Turns, f.Floor, f.Act }),
+                }));
+                rows3++;
                 if (s.Kind == 1) { string n = ML.DtNames[s.Dtype]; kinds[n] = kinds.GetValueOrDefault(n) + 1; continue; }
                 rowsOut.WriteLine(JsonSerializer.Serialize(new { run = seed, floor = s.Floor, ints = s.Row.I, floats = s.Row.F }));
                 rows++;
@@ -195,6 +303,9 @@ public static class EncodeTest
         }
         Console.WriteLine($"encode test: {runs} runs, {won} won, {errors} errors, mean floors {floors / (double)Math.Max(1, runs - errors):F1}, {rows} floor rows; " +
             "decisions " + string.Join(", ", kinds.OrderBy(k => k.Key).Select(k => $"{k.Key} {k.Value}")));
+        Console.WriteLine($"layout v3 (ints {ML.IW}, floats {ML.FW}; fight ints from {ML.OFightEnc}, fight floats from {ML.FFights}, map nodes from {ML.FMap}): " +
+            $"{rows3} rows in rows3.jsonl; map rows {MacroEncoder.MapRows}, most nodes in an act map {MacroEncoder.MapNodesMax}, rows truncated to {ML.NMap} nodes {MacroEncoder.MapTruncated}");
+        MacroEncoder.Debug = false;
         Console.WriteLine("macro vocabulary: " + string.Join(", ", mvocab.Seen.Where(x => x.Value > 0).Select(x => $"{x.Key} unknown {mvocab.Unknown[x.Key]}/{x.Value}")));
         Console.WriteLine("run-level card selections: " + string.Join(", ", services.SelectionKinds.OrderByDescending(x => x.Value).Select(x => $"{x.Key} {x.Value}")));
         Console.WriteLine("notes: " + string.Join(", ", services.Notes.OrderByDescending(x => x.Value).Take(30).Select(x => $"{x.Key} {x.Value}")));

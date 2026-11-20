@@ -15,12 +15,8 @@ Builds on `src/s0` (iRyougi + S0 patch, resampling clone, action space, encoder,
 | `export_starts.py` | Battle-start pool from the full dump (Defect A10 v0.111.0), held-out 5% of runs |
 | `make_tables.py` | Batched T_f tables for the pool (S1 macro ensemble; same construction as `s0/make_tf_tables.py`) |
 | `run_selfplay.sh`, `eval_ckpt.sh`, `summarize_eval.py`, `bench_actors.sh` | Run scripts |
-| `data/` | `starts_*_{train,eval}.jsonl`, `tables_*_{train,eval}.jsonl` (run-derived, supplied separately) |
-| `runs/<name>/` | weights.pt (current), ckpt/, data/ (chunks), fights/ (per-fight logs), logs/ (created at run time) |
-
-The battle-start pool and T_f tables are derived from Spire Codex runs; see `doc/experiments.md` for how they
-were built and `doc/code-map.md` for the paths the scripts expect. The released S3 checkpoints are in the GitHub
-release.
+| `data/` | `starts_*_{train,eval}.jsonl`, `tables_*_{train,eval}.jsonl` |
+| `runs/<name>/` | weights.pt (current), ckpt/, data/ (chunks), fights/ (per-fight logs), logs/ |
 
 ## How the macro network guides the combat network (PROPOSAL.md §4.2, D13)
 
@@ -41,7 +37,7 @@ Training chunks are version 2 (meta width 12: end-HP bin, held-slot masks at the
 ## Commands
 
 ```bash
-W=$(pwd)  # repository root; cd $W
+W=/mnt/4dbcffbd-bd6e-43c4-bc27-9274605ea5e4/AI/Slay_the_Spire_2_agent; cd $W
 export NUGET_PACKAGES=$W/.cache/nuget DOTNET_CLI_HOME=$W/.cache/dotnet DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 TMPDIR=$W/.cache/tmp
 dotnet build src/s2/S2/S2.csproj -c Release -m:8
 src/s2/run_selfplay.sh NAME 16 3600                      # self-play training, 16 actors, 1 hour

@@ -21,6 +21,8 @@ public sealed class RunRecord
     public int Ascension;
     public bool Won, Perturbed, Error;
     public string Outcome = "", ErrorText = "", KilledBy = "";
+    /// <summary>ic113: the run's character id and the simulator's game build.</summary>
+    public string Character = "", BuildId = ML.BuildId;
     public int Floors, ActIndex, FinalHp, MaxHp, Fights, FightsWon, Elites, Bosses, BossesWon, Rests, Smiths, Shops, Events,
         CardsTaken, CardsSkipped, PotionsUsed, Perturbations, DeckSize, Relics;
     public long Simulations, CombatDecisions, ModelVersion, MacroVersion;
@@ -32,10 +34,14 @@ public sealed class RunRecord
     public double PracticeSeconds;
     public readonly List<MacroStep> Steps = new();
     public readonly Dictionary<string, int> DecisionCounts = new();
+    /// <summary>look_* lookaheads of this run by decision type (TYPE: decisions scored, TYPE_changed: greedy picks the
+    /// bonus changed); logged only when not empty, so runs without them keep their old record.</summary>
+    public readonly Dictionary<string, int> Look = new();
 
     public Dictionary<string, object?> Log(string tag, int index)
     {
         var d = LogBase(tag, index);
+        if (Look.Count > 0) d["look"] = Look;
         if (PracticeOn)
         {
             d["practice_fights"] = PracticeFights; d["practice_won"] = PracticeWon; d["practice_abandoned"] = PracticeAbandoned;
@@ -47,7 +53,7 @@ public sealed class RunRecord
 
     private Dictionary<string, object?> LogBase(string tag, int index) => new()
     {
-        ["run"] = index, ["actor"] = tag, ["seed"] = Seed, ["ascension"] = Ascension, ["won"] = Won, ["outcome"] = Outcome,
+        ["run"] = index, ["actor"] = tag, ["seed"] = Seed, ["character"] = Character, ["build_id"] = BuildId, ["ascension"] = Ascension, ["won"] = Won, ["outcome"] = Outcome,
         ["error"] = Error ? ErrorText : null, ["perturbed"] = Perturbed, ["floors"] = Floors, ["act"] = ActIndex,
         ["final_hp"] = FinalHp, ["max_hp"] = MaxHp, ["killed_by"] = KilledBy, ["fights"] = Fights, ["fights_won"] = FightsWon,
         ["elites"] = Elites, ["bosses"] = Bosses, ["bosses_won"] = BossesWon, ["rests"] = Rests, ["smiths"] = Smiths,

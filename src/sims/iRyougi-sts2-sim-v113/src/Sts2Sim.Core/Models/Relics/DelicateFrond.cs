@@ -1,0 +1,24 @@
+using Sts2Sim.Core.Commands;
+using Sts2Sim.Core.Entities.Relics;
+using Sts2Sim.Core.Factories;
+
+namespace Sts2Sim.Core.Models.Relics;
+
+public sealed class DelicateFrond : RelicModel
+{
+    public override RelicRarity Rarity => RelicRarity.Ancient;
+
+    public override async Task BeforeCombatStart()
+    {
+        using IDisposable rngScope = Owner.PlayerRng.BeginSemanticScope(
+            $"{Owner.CurrentSemanticLocationKey}/noncombat/DelicateFrond");
+        while (Owner.PotionSlots.Contains(null))
+        {
+            var potion = PotionFactory.CreateRandomOutOfCombat(Owner, Owner.PlayerRng.NonCombatGeneration);
+            if (potion is null || !await PotionCmd.TryToProcure(potion, Owner))
+            {
+                break;
+            }
+        }
+    }
+}

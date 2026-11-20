@@ -1,5 +1,0 @@
-# Python packages used by the training, inference and analysis code.
-# The original runs used these exact versions (CUDA 12.4 build of torch).
-torch==2.6.0
-numpy==2.5.4
-orjson==3.13.0

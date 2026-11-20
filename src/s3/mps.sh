@@ -11,7 +11,7 @@
 #           and its process-group kill, and the next segment reuses it.
 #   status  exit 0 if a daemon answers; prints its server list
 #   stop    ask the daemon to quit. Do it only while no S3 segment is running (between segments, or after the
-#           chain ended): the CUDA contexts of running MPS clients live in the MPS server.
+#           supervisor ended): the CUDA contexts of running MPS clients live in the MPS server.
 # Processes without CUDA_MPS_PIPE_DIRECTORY=DIR/pipe (eval_s3.sh, other runs) do not use this daemon and run as before
 # (non-MPS contexts share the GPU with an MPS server by time-slicing, as with any other process).
 CMD=$1; DIR=${2:-/tmp/s3_mps}
@@ -43,6 +43,9 @@ assert float((x @ x).sum()) == 256.0 ** 3
 " > $DIR/log/probe.txt 2>&1 && [ -n "$(echo get_server_list | timeout 10 nvidia-cuda-mps-control)" ]
 }
 start_daemon() {
+  # no daemon answers here: pipe files left by one that died with the container (interruptible servers; from branch
+  # resilient, 2026-11-18) are removed first
+  find $DIR/pipe -mindepth 1 -delete 2>/dev/null
   nvidia-cuda-mps-control -d 9>&- || { say "daemon start failed (exit $?); see $DIR/log/control.log"; return 1; }
   for i in $(seq 50); do answers && break; sleep 0.1; done
   answers || { say "daemon started but does not answer; see $DIR/log/control.log"; return 1; }

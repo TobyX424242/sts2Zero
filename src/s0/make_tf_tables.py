@@ -15,7 +15,7 @@ import gzip, itertools, json, os, sys, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, "..")
-sys.path.insert(0, os.path.join(ROOT, "value_v1")); sys.path.insert(0, os.path.join(ROOT, "s1"))
+sys.path.insert(0, os.path.join(ROOT, "value_v1")); sys.path.insert(0, os.path.join(ROOT, "value_v2"))
 import numpy as np
 import orjson
 import torch

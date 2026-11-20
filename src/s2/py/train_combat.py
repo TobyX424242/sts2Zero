@@ -27,7 +27,10 @@ Options from KataGo (Wu 2019), all off by default (then the trainer behaves exac
 Carry-over between trainer processes (S3 segments; off by default):
   --save-carry P on SIGTERM/SIGINT and at the end, write the newest --carry-keep replay entries (with their surprise
                  priorities), the optimizer state and the counters to P (temp file + rename: P is complete or absent;
-                 a size + trailer check rejects anything else).
+                 a size + trailer check rejects anything else). The file is fsync'ed before the rename.
+  --carry-every S (2026-11-19, interruptible servers; 0 = off) also write the --save-carry file every S seconds of wall
+                 time, between training steps (same code path and file): a segment killed without a signal (a Vast.ai
+                 preemption sends none) keeps a carry at most S seconds old, so the supervisor can adopt the segment.
   --load-carry P at the start, if P is complete: the entries fill the replay buffer (they count toward --min-data but not
                  toward the reuse budget, see --carry-reuse) and the optimizer state is restored when the parameter
                  shapes match. Missing or broken file: a log line and a fresh start as without the option.
@@ -39,6 +42,10 @@ Shadow trainers and offline comparisons (2026-11-13, IMPROVEMENT_PLAN.md change 
                  held-out set that is the same for every trainer of the stream (src/s2/py/combat_heldout.py).
 
 Network configuration overrides (2026-11-15; none by default):
+  --wd-groups G  all (default, the old optimizer: AdamW weight decay --wd on every parameter) | matrices (ic113 s3ic,
+                 2026-11-18): decay only on weight matrices (ndim >= 2, not nn.Embedding tables), none on embeddings,
+                 LayerNorm parameters, biases and other vectors; the trainer prints both groups' tensor and parameter counts.
+                 A carry whose optimizer state has another group layout is not restored (fresh Adam state).
   --config K=V   (repeatable) set a config key of the network, e.g. --config ext=1: the layout-v4/v5 network
                  (combat_obs.CombatNet ext_feat; src/s2/py/model.py). With --init the checkpoint's weights are loaded
                  into the overridden network: a v3 checkpoint + ext=1 = an ext network whose outputs equal the
@@ -92,6 +99,18 @@ def kata_window(n, cap, c, alpha, beta):
     if n <= c:
         return min(cap, n)
     return min(cap, int(c * (1 + beta * ((n / c) ** alpha - 1) / alpha)))
+
+
+def fsync_dir(path):
+    """Best effort: make a rename in the directory of path durable."""
+    try:
+        fd = os.open(os.path.dirname(os.path.abspath(path)), os.O_RDONLY)
+        try:
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    except OSError:
+        pass
 
 
 class Replay:
@@ -149,9 +168,11 @@ class Replay:
                     put(f, np.ascontiguousarray(a[s:e]))
             put(f, extra)
             put(f, b"S2CARRYEND000000")
+            os.fsync(f.fileno())              # on disk before the rename: a rename must never expose a partial file
         if os.path.getsize(tmp) != total:
             raise OSError(f"carry file size {os.path.getsize(tmp)} != {total}")
         os.replace(tmp, path)
+        fsync_dir(path)
         return n, total
 
     def load_carry(self, path):
@@ -220,7 +241,7 @@ class Replay:
                     self.add(*chunk)
                 self.seen.add(p)
                 side = p + ".obs"   # layout-v5 sidecar written next to the chunk (obs=..., intent_damage=..., relic_counters=...)
-                if archive:  # kept in the run archive (KEEP=1); the data is paid for, do not silently discard it
+                if archive:  # kept: backup_loop.sh compresses and uploads it (owner: the data is paid for, keep it)
                     os.replace(p, os.path.join(archive, os.path.basename(p)))
                     if os.path.exists(side):
                         os.replace(side, os.path.join(archive, os.path.basename(side)))
@@ -339,14 +360,32 @@ def losses(net, obs, act, pol, meta, dev, head="outcome", rel_weight=2.0, per_sa
     return pol_loss, v_loss, info
 
 
-def save_carry(a, rb, opt, net, version, steps_total, credit):
+def wd_param_groups(net, wd):
+    """--wd-groups matrices: AdamW groups [decay wd: weight matrices (ndim >= 2) of every module except nn.Embedding;
+    no decay: embedding tables, LayerNorm weights / biases, all biases and other 1-d parameters]. Prints the counts."""
+    emb = {id(m.weight) for m in net.modules() if isinstance(m, torch.nn.Embedding)}
+    dec, nod, seen = [], [], set()
+    for p in net.parameters():
+        if id(p) in seen:
+            continue
+        seen.add(id(p))
+        (dec if p.ndim >= 2 and id(p) not in emb else nod).append(p)
+    n_emb = sum(1 for p in nod if id(p) in emb)
+    print(f"[train] weight decay groups (--wd-groups matrices): decay {wd} on {len(dec)} tensors / "
+          f"{sum(p.numel() for p in dec):,} parameters (weight matrices); no decay on {len(nod)} tensors / "
+          f"{sum(p.numel() for p in nod):,} parameters ({n_emb} embedding tables, {len(nod) - n_emb} norm / bias / vector "
+          f"tensors)", flush=True)
+    return [{"params": dec, "weight_decay": wd}, {"params": nod, "weight_decay": 0.0}]
+
+
+def save_carry(a, rb, opt, net, version, steps_total, credit, why="end"):
     t = time.time()
     try:
         bio = io.BytesIO()
         torch.save({"opt": opt.state_dict(), "shapes": [list(p.shape) for p in net.parameters()], "version": version,
                     "steps_total": steps_total, "credit": float(credit), "reuse": a.reuse}, bio)
         n, nb = rb.save_carry(a.save_carry, a.carry_keep, bio.getvalue())
-        print(f"[train] carry saved to {a.save_carry}: {n} entries, {nb / 1e6:.0f} MB, {time.time() - t:.1f} s; "
+        print(f"[train] carry saved ({why}) to {a.save_carry}: {n} entries, {nb / 1e6:.0f} MB, {time.time() - t:.1f} s; "
               f"optimizer state, {steps_total} steps in total, unused budget {credit:.0f} samples", flush=True)
     except Exception as e:
         print(f"[train] carry NOT saved ({type(e).__name__}: {e})", flush=True)
@@ -368,14 +407,16 @@ def load_carry(a, rb, net, opt, dev):
     steps_before, unused = 0, 0.0
     try:
         st = torch.load(io.BytesIO(extra), map_location=dev, weights_only=False)
-        steps_before, unused = int(st.get("steps_total", 0)), max(0.0, float(st.get("credit", 0.0)))
+        unused = max(0.0, float(st.get("credit", 0.0)))
         if st["shapes"] != [list(p.shape) for p in net.parameters()]:
             raise ValueError("parameter shapes differ")
         opt.load_state_dict(st["opt"])
-        for g in opt.param_groups:             # hyperparameters come from this command line, not from the file
-            g["lr"], g["weight_decay"] = a.lr, a.wd
+        steps_before = int(st.get("steps_total", 0))
+        for k, g in enumerate(opt.param_groups):   # hyperparameters come from this command line, not from the file
+            g["lr"], g["weight_decay"] = a.lr, (0.0 if k == 1 else a.wd) if a.wd_groups == "matrices" else a.wd
         msg += f"; optimizer state restored ({steps_before} steps before)"
     except Exception as e:
+        steps_before = 0
         msg += f"; optimizer state NOT restored ({type(e).__name__}: {e}), fresh optimizer"
     # budget: what the previous trainer had not used yet (at most --reuse uses per loaded entry) + --carry-reuse uses
     credit = min(unused, a.reuse * n) + a.carry_reuse * n
@@ -388,7 +429,7 @@ def main():
     ap.add_argument("--data", required=True)
     ap.add_argument("--weights", required=True)
     ap.add_argument("--ckpt-dir", default="")
-    ap.add_argument("--vocab", default=os.path.join(HERE, "..", "..", "s0", "data", "combat_vocab_v1.json"))
+    ap.add_argument("--vocab", default=os.path.join(HERE, "..", "..", "s0", "data", "combat_vocab_v113.json"))
     ap.add_argument("--window", type=int, default=500_000, help="replay buffer size in decisions (the largest window)")
     ap.add_argument("--window-min", type=int, default=0,
                     help="growing window (KataGo): train on the newest min(--window, f(N)) decisions, N = decisions "
@@ -413,7 +454,12 @@ def main():
                     help="cosine: from --lr to --lr-min over --total-steps, then held at --lr-min")
     ap.add_argument("--lr-min", type=float, default=1e-5)
     ap.add_argument("--total-steps", type=int, default=26000, help="cosine length; the 1-hour 30-actor run made ~26k steps")
+    ap.add_argument("--lr-continue", action="store_true",
+                    help="with --lr-schedule cosine and --load-carry: advance the cosine schedule using steps_before + step "
+                         "so the LR decays smoothly across segments instead of resetting to --lr at each segment start")
     ap.add_argument("--wd", type=float, default=1e-4)
+    ap.add_argument("--wd-groups", default="all", choices=["all", "matrices"], help="all: decay on every parameter (old); "
+                    "matrices: decay on weight matrices only, none on embeddings / norms / biases")
     ap.add_argument("--rel-weight", type=float, default=2.0)
     ap.add_argument("--save-every", type=int, default=200)
     ap.add_argument("--keep-every", type=int, default=10)
@@ -431,6 +477,8 @@ def main():
                     "entries, the optimizer state and the counters to this file (temp file + rename)")
     ap.add_argument("--load-carry", default="", help="start with the replay entries and optimizer state of this carry file "
                     "if it exists and is complete (else a log line and a fresh start)")
+    ap.add_argument("--carry-every", type=float, default=0.0, help="also write the --save-carry file every this many "
+                    "seconds of wall time, between steps (0 = only on SIGTERM/SIGINT and at the end)")
     ap.add_argument("--carry-keep", type=int, default=1_000_000, help="entries written by --save-carry (4.1 kB each)")
     ap.add_argument("--carry-reuse", type=float, default=0.5,
                     help="training budget granted at the start for the loaded entries, in uses per entry (training can "
@@ -484,7 +532,10 @@ def main():
             load_weights(ema, ck0["state_dict"] if "state_dict" in ck0 else ck0)   # ext_feat: net's fresh copy
         ema.requires_grad_(False)
         ema_p, net_p = list(ema.parameters()), list(net.parameters())
-    opt = torch.optim.AdamW(net.parameters(), lr=a.lr, weight_decay=a.wd)
+    if a.wd_groups == "matrices":
+        opt = torch.optim.AdamW(wd_param_groups(net, a.wd), lr=a.lr)
+    else:
+        opt = torch.optim.AdamW(net.parameters(), lr=a.lr, weight_decay=a.wd)
     log = open(a.log or os.path.join(os.path.dirname(os.path.abspath(a.weights)), "train_log.jsonl"), "a")
     if a.ckpt_dir:
         os.makedirs(a.ckpt_dir, exist_ok=True)
@@ -510,6 +561,7 @@ def main():
     rng = np.random.default_rng(a.seed)
     step, t0, acc = 0, time.time(), {}
     last_scan = 0.0
+    last_carry, carried_at = time.time(), None
     stop = {"flag": False, "sleeping": False}
 
     class Stop(Exception):
@@ -523,6 +575,13 @@ def main():
         signal.signal(signal.SIGTERM, on_signal); signal.signal(signal.SIGINT, on_signal)
     try:
         while step < a.max_steps and not stop["flag"]:
+            if a.save_carry and a.carry_every > 0 and time.time() - last_carry >= a.carry_every:
+                if (step, rb.ingested) != carried_at:     # nothing new since the last periodic save: skip it
+                    save_carry(a, rb, opt, net, version, steps_before + step, a.reuse * rb.ingested + credit - step * a.batch,
+                               why="periodic")
+                    carried_at = (step, rb.ingested)
+                last_carry = time.time()
+                continue
             if time.time() - last_scan > 5 or rb.size == 0:
                 rb.scan(a.data, archive=a.archive_dir, tee=tee, skip_every=a.skip_every); last_scan = time.time()
                 if a.window_min > 0:
@@ -558,7 +617,8 @@ def main():
                 sinfo["pol_share"] = float(has.mean())
                 sinfo["surp_mean"] = rb.surp_mean; sinfo["surp_measured"] = rb.surp_frac
             if a.lr_schedule == "cosine":
-                frac = min(1.0, step / max(1, a.total_steps))
+                sched_step = (steps_before + step) if a.lr_continue else step
+                frac = min(1.0, sched_step / max(1, a.total_steps))
                 for g in opt.param_groups:
                     g["lr"] = a.lr_min + 0.5 * (a.lr - a.lr_min) * (1 + math.cos(math.pi * frac))
             opt.zero_grad(set_to_none=True)

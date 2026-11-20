@@ -1,60 +1,27 @@
-# S1: macro network (human-data warm start)
+# S1 v2: value network on all clean Spire Codex runs
 
-The macro network predicts the run outcome V_run = P(win) from the state after a floor and a policy over the
-out-of-combat choices. S1 is the warm start; S3 retrains the same network on the agent's own runs.
+Implements PROPOSAL.md §6.3 items 1, 2, 4 and 5: uniform floor sampling, state-only inputs, an HP-monotone output head, and natural frequencies, with the no-attention model as an option. The rebuild, leak guards and metrics are reused from `../value_v1/`; run selection and eras from `../pipeline/sample_runs.py`.
 
-The shared reconstruction and base trainer live in `src/value_v1`.
+| File | What | Tested |
+|---|---|---|
+| `build_dataset_v2.py` | Streams the dump, keeps every clean unique run, builds per-floor arrays (+ `build.npy`, `builds.json`, `index.csv`) | 2026-11-10 on the server: 20k-run smoke test (583,707 floors, start-deck match 99.7%); full build launched |
+| `train_value_v2.py` | Trainer, `--arch transformer|noattn`, `--max-train-runs` for the scaling curve; reports log loss, AUC, within-floor AUC, ECE in floor bands, calibration by floor, target cell (Defect A10 v0.111.0), HP probe | 2026-11-10 smoke test, 2 epochs each: HP probe 0% decreasing (monotone head works); 17k samples/s (transformer), 49–53k/s (no attention) on the RTX 4080 |
+| `run_s1_scaling.sh` | Full dataset build, then the scaling curve: 25k / 50k / 100k / 300k / all training runs × both model types, one job at a time | Launched 2026-11-10 |
 
-| File | What |
-|---|---|
-| `build_dataset_v2.py` | Per-floor dataset from all clean runs at natural frequencies; leak guards and run selection from `src/value_v1/build_floor_dataset.py` and `src/pipeline/sample_runs.py` |
-| `build_decisions_v2.py` | Decision dataset for the policy head: card reward, relic pick, ancient, rest, smith target, removal target, shop |
-| `train_value_v2.py` | Value trainer: uniform floors, state-only inputs, HP-monotone head, natural frequencies, no-attention or transformer encoder |
-| `train_value_v2_r1.py` | Frozen pre-speedup version used for the scaling curve |
-| `train_macro_v2.py` | `MacroNet`: shared no-attention encoder + HP-monotone value head + policy head |
-| `s1_finalize.py` | Ensemble calibration, dominance checks, T_f builder tests, G1 report |
-| `summarize_scaling.py` | Scaling-curve table |
-| `run_*.sh` | Data build / scaling / ensemble / finalize drivers (paths and `PY` via environment) |
+**Where it runs:** the rented server (`/root/sts2`; access and transfer rules in the memory notes and PROPOSAL.md §11.2). The full dataset is about 23 GB of arrays, so it needs a machine with 64 GB+ RAM.
 
-## Model
+**Server layout:** `/root/sts2/env.sh` (cache variables, `$PY`, `$D`); data in `src/data/spire_codex/` (dump downloaded on the server 2026-11-10, 9,417,747,533 bytes, sha256 `42c8fc90cd222140bac56d46093d73af5468b78dd9eefd580a1bc9c741fb1a91`; scan: 2,710,489 lines, 1,209,796 clean); outputs in `runs/floors_v2/` and `runs/s1_scaling/<arch>_<runs>/`.
 
-- Entity-set encoder over deck cards (id, upgrade, enchantment and amount, age), relics (id, age), potions, context
-  (character, ascension, era, act, room, encounter) and 16 scalars. The no-attention variant is a stack of per-token
-  residual MLPs followed by masked mean pooling and a 512-256-128 trunk. It won or tied at every data size and trains
-  about twice as fast as the set transformer.
-- HP is removed from the encoder input. The value logit is
-  `a(z) + sum_k softplus(b_k(z)) * phi_k(hp, max_hp)` with 26 fixed increasing ramps, so V cannot fall when HP rises.
-- Ensemble of five seeds; T_f uses the mean logit (the raw ensemble was best calibrated; temperature scaling was
-  dropped). The policy head scores each offered option with `[q, e, q*e]` and deck slots with the deck token states.
-- The S1 policy does not see HP. S3 adds the HP ramps to the policy query through a zero-initialised layer.
+**Server software:** Python 3.12.3, torch 2.6.0+cu124, numpy 2.5.4, orjson 3.13.0, pigz (apt).
 
-## Results (G1)
+## Status 2026-11-11
 
-5 members, test split of the 965,021 training-run dataset; target cell Defect A10 v0.111.0:
+| File | What | Tested |
+|---|---|---|
+| `train_value_v2.py` (r2) | Value trainer with packed, length-sorted batches, sorted prediction, no per-step syncs, optional `--compile`, `--drop` input ablations | On the 5090: same result as r1 on noattn 300k (test log loss 0.4707 both), 136k samples/s, validation 1.2 s per 1M floors |
+| `train_value_v2_r1.py` | The scaling-curve version, frozen | Produced `runs/s1_scaling_5090/` |
+| `build_decisions_v2.py` | Decision dataset for the policy head: 7 decision types; each is a floor example + edits that restore the pre-choice state | Full build on the 5090: 31,341,873 decisions in 326 s |
+| `train_macro_v2.py` | Macro network: shared no-attention encoder (mean pooling, no CLS) + value head (HP-monotone) + policy head | Smoke test (20k runs, 2 epochs) passed; full run started 13:59 |
+| `summarize_scaling.py`, `stop_s1.sh`, `restart_s1.sh`, `s1_server_bootstrap.sh`, `run_*.sh`, `smoke_macro.sh` | Server tooling | Used on the 9950X and 5090 servers |
 
-| Metric | Value |
-|---|---|
-| Ensemble test log loss | 0.4655 |
-| AUC / within-floor AUC | 0.8365 / 0.8002 |
-| ECE (all floor bands) | 0.0038 |
-| Target cell log loss / within-floor AUC / ECE | 0.4301 / 0.7814 / 0.019 |
-| HP violations (+10 HP lowers V by >0.5 pt) | 0 / 39,850 |
-| +1 potion wrong by >0.5 pt | 2.82% (accepted; T_f fixes potion prices in S3) |
-| Card-reward top-1 vs human | 53.3% (pick-rate baseline 40.6%) |
-| Ancient / removal / rest / relic / smith / shop top-1 | 82.6 / 73.2 / 67.2 / 54.9 / 47.0 / 34.8% |
-
-Data-scaling curve (test log loss, full data): no-attention 0.4604 / within-floor 0.8054; transformer 0.4628 / 0.8036.
-At 25k-300k runs the no-attention model also wins or ties. Full table in `doc/data/s1_scaling.csv`.
-
-## Commands
-
-```bash
-# D points at your runs-latest.jsonl.gz + meta_all.csv.gz (Spire Codex)
-D=data/spire_codex F=runs/floors_v2 src/s1/run_s1_scaling.sh
-F=runs/floors_v2 src/s1/run_macro_full.sh
-F=runs/floors_v2 src/s1/run_macro_ensemble.sh
-F=runs/floors_v2 src/s1/run_s1_finalize.sh
-```
-
-`PY` defaults to `./.venv/bin/python`; the scripts run from the repository root. The resulting five members are
-packaged as one ensemble checkpoint for S3.
+**S1 decisions (2026-11-11):** no-attention architecture; inputs and tokenizer unchanged (unknown tokens 0.004–0.033%, deck truncation 0.08%). Results in `runs/s1_scaling_5090/summary.txt`.

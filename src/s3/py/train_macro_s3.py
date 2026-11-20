@@ -23,6 +23,10 @@ Carry-over between trainer processes (S3 segments; off by default): --save-carry
 --window-runs runs) and the five Adam states to P on SIGTERM/SIGINT and at the end (temp file + rename); --load-carry P
 puts those runs into the value window and restores the optimizers whose parameter shapes match. PPO is not affected:
 carried runs are never used for the policy (only runs ingested by this process are), and the run counter is unchanged.
+--carry-every S (2026-11-19, interruptible servers; 0 = off): also write the --save-carry file every S seconds of wall
+time, between iterations (same code path and file; fsync'ed before the rename), so a segment killed without a signal
+keeps a carry at most S seconds + one iteration old. A SIGTERM during a periodic save abandons it (the temp file) and
+the save at exit writes the file again.
 
 Value-fit options (2026-11-13, IMPROVEMENT_PLAN.md change A; all off by default = the old behaviour):
   --value-rows-per-run K  the value window keeps K random rows of each run (PPO still uses every decision of the new
@@ -52,6 +56,16 @@ the next milestone and for the run win, the value by HP fifth and the share of v
 Offline replay (--replay LIST): read the *.s3r files named in LIST (one path per line, in that order) instead of
 watching --mdata; files are not moved or deleted; the trainer exits when the list is used up. With --value-only this
 replays a stored run through the value trainer (the logged fresh-run loss is measured before each update).
+
+Row layout v2 (2026-11-16, macro_s3.py header): chunks and carry files written with the v1 row widths (ints 460,
+floats 208) are still read; their rows are zero-padded to the current widths (macro_s3.pad_rows), so the window can
+hold rows of both kinds. A carry file's optimizer states are restored for the parameters it has (the layout v2
+parameters are registered last and start with fresh Adam state); the carry file is always written in the current widths.
+
+Row layout v3 (2026-11-16, macro_s3.py header): chunks and carry files of layouts v1 (460 / 208), v2 (462 / 344) and v3
+(478 / 472) are read; older rows are zero-padded (no fights, no map nodes). A carry file's optimizer states are restored
+for the parameters it has (the v3 parameters are registered after the v2 ones and start with fresh Adam state).
+--freeze-v3 keeps the v3 zero layers at zero (they get no updates): the control arm of src/exp/l3_value.sh.
 
 Usage: python -I src/s3/py/train_macro_s3.py --mdata DIR --macro OUT.pt [--init src/s3/data/macro_s1.pt]
 """
@@ -124,13 +138,15 @@ def read_chunk(path):
     with open(path, "rb") as f:
         b = f.read()
     assert b[:8] == b"S3RUNS01", path
-    ver, R, N, iw, fw, rm, rw = np.frombuffer(b, "<i4", 7, 8)
-    assert (ver, iw, fw, rm, rw) == (1, ms.IW, ms.FW, RM, RW), (path, ver, iw, fw, rm, rw)
+    ver, R, N, iw, fw, rm, rw = (int(x) for x in np.frombuffer(b, "<i4", 7, 8))
+    # the header's row widths: the current layout, or layout v1 / v2 (chunks of actors built before layout v3)
+    assert (ver, rm, rw) == (1, RM, RW) and (iw, fw) in ms.WIDTHS.values(), (path, ver, iw, fw, rm, rw)
     off = 64
     runs = np.frombuffer(b, "<i4", R * RM, off).reshape(R, RM).copy(); off += runs.nbytes
-    ints = np.frombuffer(b, "<i2", N * ms.IW, off).reshape(N, ms.IW).copy(); off += ints.nbytes
-    floats = np.frombuffer(b, "<f4", N * ms.FW, off).reshape(N, ms.FW).copy(); off += floats.nbytes
+    ints = np.frombuffer(b, "<i2", N * iw, off).reshape(N, iw).copy(); off += ints.nbytes
+    floats = np.frombuffer(b, "<f4", N * fw, off).reshape(N, fw).copy(); off += floats.nbytes
     meta = np.frombuffer(b, "<f4", N * RW, off).reshape(N, RW).copy()
+    ints, floats = ms.pad_rows(ints, floats)              # v1 / v2 rows: zeros in the newer columns
     return runs, ints, floats, meta
 
 
@@ -211,7 +227,7 @@ def decay_params(net, value_only):
     return out
 
 
-def save_carry(path, store, opts, nets, version):
+def save_carry(path, store, opts, nets, version, why="end"):
     """Value window (rows as three flat arrays + per-run fields) and optimizer states, via path.tmp and a rename."""
     t = time.time()
     try:
@@ -223,8 +239,14 @@ def save_carry(path, store, opts, nets, version):
               **{k: torch.from_numpy(np.ascontiguousarray(cat(runs, k)) if runs else np.zeros((0, w), dt))
                  for k, w, dt in (("ints", ms.IW, np.int16), ("floats", ms.FW, np.float32), ("meta", RW, np.float32))},
               "opts": [o.state_dict() for o in opts], "shapes": [[list(p.shape) for p in n.parameters()] for n in nets]}
-        torch.save(ck, path + ".tmp"); os.replace(path + ".tmp", path)
-        print(f"[mtrain] carry saved to {path}: {len(runs)} runs, {int(ck['n_rows'].sum())} rows, "
+        with open(path + ".tmp", "wb") as f:
+            torch.save(ck, f); f.flush(); os.fsync(f.fileno())   # on disk before the rename
+        os.replace(path + ".tmp", path)
+        try:
+            fd = os.open(os.path.dirname(os.path.abspath(path)), os.O_RDONLY); os.fsync(fd); os.close(fd)
+        except OSError:
+            pass
+        print(f"[mtrain] carry saved ({why}) to {path}: {len(runs)} runs, {int(ck['n_rows'].sum())} rows, "
               f"{os.path.getsize(path) / 1e6:.0f} MB, {time.time() - t:.1f} s", flush=True)
     except Exception as e:
         print(f"[mtrain] carry NOT saved ({type(e).__name__}: {e})", flush=True)
@@ -240,7 +262,10 @@ def load_carry(path, store, opts, nets, lr, dev):
         assert ck.get("magic") == "S3MCARRY1", "bad magic"
         n_rows = ck["n_rows"].numpy()
         ints, floats, meta = (ck[k].numpy() for k in ("ints", "floats", "meta"))
-        assert ints.shape[1:] == (ms.IW,) and floats.shape[1:] == (ms.FW,) and meta.shape[1:] == (RW,), "row layout differs"
+        w_file = (ints.shape[1:], floats.shape[1:])
+        if w_file in (((ms.IW_V1,), (ms.FW_V1,)), ((ms.IW_V2,), (ms.FW_V2,))):   # an older carry: zeros in the new columns
+            ints, floats = ms.pad_rows(ints, floats)
+        assert ints.shape[1:] == (ms.IW,) and floats.shape[1:] == (ms.FW,) and meta.shape[1:] == (RW,), f"row layout differs {w_file}"
         assert len(ints) == len(floats) == len(meta) == int(n_rows.sum()), "row counts differ"
         runs, o = [], 0
         for i, n in enumerate(n_rows):
@@ -291,10 +316,10 @@ def cat(runs, key):
     return np.concatenate([r[key] for r in runs]) if runs else np.zeros((0,))
 
 
-def policy_logp(net, b, meta, dev):
+def policy_logp(net, b, meta, dev, p2_ctx=None):
     """Log-probabilities of every candidate under member `net` for decision rows: returns (logp of the chosen answer,
     entropy, full log-prob matrix over the 16 options + 64 slots with invalid entries at -inf)."""
-    _, _, v, opt, slot = net.forward_rows(b, policy=True)
+    _, _, v, opt, slot = net.forward_rows(b, policy=True, p2_ctx=p2_ctx)
     dt = b["dtype"]
     is_slot = (dt == 4) | (dt == 5)
     bits = torch.arange(16, device=dev)
@@ -308,6 +333,79 @@ def policy_logp(net, b, meta, dev):
     p = lp.exp()
     ent = -(p * lp.clamp(min=-50)).sum(-1)
     return lp_c, ent, lp, v
+
+
+@torch.no_grad()
+def card_lookahead_targets(ens, di, dfl, lp_start, look_beta, dev, bs=2048):
+    """Reconstruct one-step card-reward lookahead targets (RunAgent.cs lines 942-966) from recorded CARD_REWARD rows.
+    Returns (q_look [D, K] float32 on dev, mask [D] bool on dev, agree_before float)."""
+    D = len(di)
+    ok_off = ms.OFF["opt_kind"][0]; oi_off = ms.OFF["opt_id"][0]; ou_off = ms.OFF["opt_upg"][0]
+    d_off = ms.OFF["d_ids"][0]; du_off = ms.OFF["d_upg"][0]; de_off = ms.OFF["d_ench"][0]
+    dea_off = ms.OFF["d_eamt"][0]; da_off = ms.OFF["d_age"][0]; dt_off = ms.OFF["dtype"][0]
+    dtype = di[:, dt_off]
+    dids = di[:, d_off:d_off + ms.MAX_DECK]
+    deck_n = (dids > 0).sum(1)
+    opt_kind = di[:, ok_off:ok_off + ms.K]
+    has_card = (opt_kind == 1).any(1)
+    eligible = np.flatnonzero((dtype == 0) & (deck_n < ms.MAX_DECK) & has_card)
+
+    q_all = torch.zeros((D, ms.K), dtype=torch.float32, device=dev)
+    mask_all = torch.zeros(D, dtype=torch.bool, device=dev)
+    if len(eligible) == 0:
+        return q_all, mask_all, 0.0
+
+    # Build base + candidate post-states in compact flat arrays
+    row_i_list, row_f_list, owners, slots = [], [], [], []
+    for idx in eligible:
+        base_i = di[idx].copy(); base_f = dfl[idx].copy()
+        # clear decision fields so serve_values sees the exact StateRow() post-state
+        base_i[dt_off] = -1
+        base_i[ok_off:ok_off + ms.K] = 0
+        base_i[oi_off:oi_off + ms.K] = 0
+        base_i[ou_off:ou_off + ms.K] = 0
+        row_i_list.append(base_i); row_f_list.append(base_f); owners.append(idx); slots.append(-1)
+        j = int(deck_n[idx])
+        for s in range(ms.K):
+            if opt_kind[idx, s] != 1:
+                continue
+            ri = base_i.copy(); rf = base_f.copy()
+            upg = int(np.clip(di[idx, ou_off + s], 0, 3))
+            ri[d_off + j] = di[idx, oi_off + s]
+            ri[du_off + j] = upg
+            ri[de_off + j] = 0; ri[dea_off + j] = 0; ri[da_off + j] = 0
+            rf[ms.S["deck_size"]] = np.float32((j + 1) / 40.0)
+            if upg > 0:
+                rf[ms.S["n_upgraded"]] = np.float32(rf[ms.S["n_upgraded"]] + 1.0 / 20.0)
+            row_i_list.append(ri); row_f_list.append(rf); owners.append(idx); slots.append(s)
+
+    RI = np.asarray(row_i_list, dtype=di.dtype)
+    RF = np.asarray(row_f_list, dtype=dfl.dtype)
+    vals = np.empty(len(RI), dtype=np.float32)
+    for s in range(0, len(RI), bs):
+        b = ms.rows_to_batch(RI[s:s + bs], RF[s:s + bs], dev)
+        vals[s:s + bs] = ens.serve_values(b)[:, ms.O_V].float().cpu().numpy()
+
+    dz = np.zeros((len(eligible), ms.K), dtype=np.float32)
+    pos = {int(idx): k for k, idx in enumerate(eligible)}
+    z0 = np.zeros(len(eligible), dtype=np.float32)
+    for v, own, sl in zip(vals, owners, slots):
+        k = pos[int(own)]
+        if sl < 0:
+            z0[k] = v
+        else:
+            dz[k, sl] = v - z0[k]
+
+    el_t = torch.from_numpy(eligible).to(dev)
+    opt_lp0 = lp_start[el_t, :ms.K]                                # [E, K]
+    legal = torch.from_numpy(opt_kind[eligible] != 0).to(dev)
+    dz_t = torch.from_numpy(dz).to(dev)
+    look_logits = (opt_lp0 + look_beta * dz_t).masked_fill(~legal, -1e9)
+    q_look = torch.softmax(look_logits, -1)
+    agree = float((opt_lp0.argmax(-1) == look_logits.argmax(-1)).float().mean().item())
+    q_all[el_t] = q_look
+    mask_all[el_t] = True
+    return q_all, mask_all, agree
 
 
 ASC_GROUPS = (("A0-8", lambda a: a <= 8), ("A9", lambda a: a == 9), ("A10", lambda a: a >= 10))
@@ -460,6 +558,7 @@ def main():
     ap.add_argument("--runs-per-iter", type=int, default=256)
     ap.add_argument("--window-runs", type=int, default=4096)
     ap.add_argument("--epochs", type=int, default=3); ap.add_argument("--batch", type=int, default=1024)
+    ap.add_argument("--eval-batch", type=int, default=8192, help="chunk size for no-grad value / calibration / lp_start forwards (lower reduces peak GPU VRAM)")
     ap.add_argument("--lr", type=float, default=1e-4); ap.add_argument("--clip", type=float, default=0.2)
     ap.add_argument("--lam", type=float, default=0.95); ap.add_argument("--ent", type=float, default=0.01)
     ap.add_argument("--kl0", type=float, default=0.5, help="initial weight of the KL penalty toward the S1 policy")
@@ -476,6 +575,8 @@ def main():
     ap.add_argument("--seed", type=int, default=0); ap.add_argument("--log", default="")
     ap.add_argument("--save-carry", default="", help="on SIGTERM/SIGINT and at the end write the value window and the "
                     "optimizer states to this file (temp file + rename)")
+    ap.add_argument("--carry-every", type=float, default=0.0, help="also write the --save-carry file every this many "
+                    "seconds of wall time, between iterations (0 = only on SIGTERM/SIGINT and at the end)")
     ap.add_argument("--load-carry", default="", help="start with the value window and optimizer states of this carry file "
                     "if it exists and loads (else a log line and a fresh start)")
     ap.add_argument("--value-rows-per-run", type=int, default=0, help="rows of each run kept in the value window (0 = all)")
@@ -494,11 +595,22 @@ def main():
                     "is used (0, or an --init file with trained heads: at once)")
     ap.add_argument("--boss1-share", type=float, default=0.0, help="share of the last act earned by beating the first "
                     "act-3 boss at the double-boss level (0 = D14 as it is)")
+    ap.add_argument("--freeze-v3", action="store_true", help="keep the layout v3 zero layers at zero (no updates; control arm)")
+    ap.add_argument("--p2", action="store_true", help="opt-in P2: attach zero-init residual adapter on member 0 reading "
+                    "stopgrad(EMA(mean members 1-4)) representations (REPR_TEST_PLAN.md)")
+    ap.add_argument("--p2-ema", type=float, default=0.95, help="EMA decay of members 1-4 for P2 (0 = live members 1-4)")
+    ap.add_argument("--look-distill", type=float, default=0.0, help="opt-in M3: distillation weight toward one-step "
+                    "lookahead distribution on CARD_REWARD rows (0 = off)")
+    ap.add_argument("--look-distill-beta", type=float, default=20.0, help="lookahead beta for --look-distill")
+    ap.add_argument("--look-distill-replace", action="store_true", help="exclude lookahead CARD_REWARD rows from the "
+                    "clipped PPO surrogate so PPO runs purely on non-lookahead decisions")
     a = ap.parse_args()
     BOSS1_SHARE[0] = a.boss1_share
     dev = "cuda" if torch.cuda.is_available() else "cpu"
     torch.manual_seed(a.seed); rng = np.random.default_rng(a.seed)
     ens = ms.Ensemble.load(a.init, dev)
+    if a.p2:
+        ens.enable_p2(use_ema=(a.p2_ema > 0))
     bc = ms.Ensemble.load(a.bc, dev).nets[0]              # frozen behaviour-cloning reference
     for p in bc.parameters():
         p.requires_grad_(False)
@@ -507,6 +619,11 @@ def main():
         n.eval()                                          # no dropout: PPO ratios need a deterministic policy
         if a.value_dropout:
             n.era_dropout = 0.0                           # S3 rows are one game version: no "unknown era" token
+    if a.freeze_v3:
+        for n in nets:
+            with torch.no_grad():
+                for p in n.v3_zero_params():
+                    p.zero_(); p.requires_grad_(False)
     opts = [torch.optim.Adam(n.parameters(), lr=a.lr) for n in nets]
     ens.save(a.macro)
     log = open(a.log or os.path.join(os.path.dirname(os.path.abspath(a.macro)), "macro_train_log.jsonl"), "a")
@@ -522,7 +639,7 @@ def main():
             trim_rows(r, a.value_rows_per_run, rng, a.value_row_share)
     pending, it, t0 = [], 0, time.time()
 
-    class Stop(Exception):
+    class Stop(BaseException):   # not an Exception: a periodic carry save's error handler must not swallow it
         pass
 
     def on_signal(sig, frame):   # an iteration in progress is abandoned (not published); its runs are in the window
@@ -548,8 +665,9 @@ def loop(a, store, nets, opts, ens, bc, log, rng, dev, pending, it, t0):
         value [n_members, rows] (log-only diagnostics; the ensemble value is computed exactly as without it).
         Once the milestone heads are in use (msst["on"]), each member's value is the blend of its heads."""
         out, mem = [], []
-        for i in range(0, len(ints), 8192):
-            b = ms.rows_to_batch(ints[i:i + 8192], floats[i:i + 8192], dev)
+        eb = a.eval_batch
+        for i in range(0, len(ints), eb):
+            b = ms.rows_to_batch(ints[i:i + eb], floats[i:i + eb], dev)
             if msst["on"]:
                 st = ms.stage_of(b["ctx"][:, 3], b["ctx"][:, 4]); dbl = b["ctx"][:, 1] >= ms.DOUBLE_BOSS_ASC
                 L = torch.stack([torch.logit(ms.blend(torch.sigmoid(n.forward_ms(b)[2]), st, dbl, alpha, a.boss1_share).clamp(1e-6, 1 - 1e-6))
@@ -573,8 +691,9 @@ def loop(a, store, nets, opts, ens, bc, log, rng, dev, pending, it, t0):
         lab = np.concatenate([ms_targets(r)[0] for r in new]); msk = np.concatenate([ms_targets(r)[1] for r in new]) > 0
         asc = np.concatenate([np.full(len(r["meta"]), r["asc"]) for r in new])
         P = []
-        for i in range(0, len(ni), 8192):
-            b = ms.rows_to_batch(ni[i:i + 8192], nf[i:i + 8192], dev)
+        eb = a.eval_batch
+        for i in range(0, len(ni), eb):
+            b = ms.rows_to_batch(ni[i:i + eb], nf[i:i + eb], dev)
             P.append(torch.stack([torch.sigmoid(n.forward_ms(b)[2]) for n in nets]).mean(0).cpu().numpy())
         P = np.concatenate(P)
         out = {}
@@ -593,7 +712,13 @@ def loop(a, store, nets, opts, ens, bc, log, rng, dev, pending, it, t0):
     rp_files = [l.strip() for l in open(a.replay) if l.strip()] if a.replay else None
     t_start = time.time()
     dparams = [decay_params(n, j == 0) for j, n in enumerate(nets)] if a.value_wd > 0 else None
+    last_carry, carried_at = time.time(), None
     while it < a.max_iters:
+        if a.save_carry and a.carry_every > 0 and time.time() - last_carry >= a.carry_every:
+            if (store.total_runs, ens.version) != carried_at:   # nothing new since the last periodic save: skip it
+                save_carry(a.save_carry, store, opts, nets, ens.version, why="periodic")
+                carried_at = (store.total_runs, ens.version)
+            last_carry = time.time()
         if rp_files is not None:
             while len(pending) < a.runs_per_iter and rp_files:
                 pending += store.scan(None, files=[rp_files.pop(0)])
@@ -660,10 +785,25 @@ def loop(a, store, nets, opts, ens, bc, log, rng, dev, pending, it, t0):
             # the trust region is measured from the policy at the start of this iteration; the recorded behaviour
             # log-probabilities (from weights up to a few versions old) are used for the importance ratios only
             with torch.no_grad():
-                parts = [policy_logp(nets[0], batch_of(di, dfl, np.arange(s, min(D, s + 8192))), torch.from_numpy(dm[s:s + 8192]).to(dev), dev)
-                         for s in range(0, D, 8192)]
+                parts = []
+                eb = a.eval_batch
+                for s in range(0, D, eb):
+                    bs_b = batch_of(di, dfl, np.arange(s, min(D, s + eb)))
+                    p2c = ens.p2_context(bs_b) if ens.p2 else None
+                    parts.append(policy_logp(nets[0], bs_b, torch.from_numpy(dm[s:s + eb]).to(dev), dev, p2_ctx=p2c))
                 lp_start = torch.cat([x[2] for x in parts])            # [D, 80] log-probabilities at the iteration start
-                info["behaviour_lag_kl"] = round(float((torch.from_numpy(dm[:, M_LOGP]).to(dev) - torch.cat([x[0] for x in parts])).mean()), 5)
+                lp_c0 = torch.cat([x[0] for x in parts])
+                old0 = torch.from_numpy(dm[:, M_LOGP]).to(dev)
+                info["behaviour_lag_kl"] = round(float((old0 - lp_c0).mean()), 5)
+                non_card_m = torch.from_numpy(dm[:, M_DTYPE].astype(np.int64) != 0).to(dev)
+                if non_card_m.any():
+                    info["behaviour_lag_kl_noncard"] = round(float((old0[non_card_m] - lp_c0[non_card_m]).mean()), 5)
+            q_look_all = look_mask_all = None
+            if a.look_distill > 0:
+                ens.milestones = msst["on"]; ens.alpha = float(alpha); ens.boss1_share = float(a.boss1_share)
+                q_look_all, look_mask_all, agree0 = card_lookahead_targets(ens, di, dfl, lp_start, a.look_distill_beta, dev, bs=a.eval_batch)
+                info["look_agree_before"] = round(agree0, 4)
+                stats["distill"] = 0.0; stats["clip_noncard"] = 0.0
             for ep in range(a.epochs):
                 perm = rng.permutation(D)
                 for s in range(0, D, a.batch):
@@ -671,15 +811,37 @@ def loop(a, store, nets, opts, ens, bc, log, rng, dev, pending, it, t0):
                     b = batch_of(di, dfl, idx)
                     m = torch.from_numpy(dm[idx]).to(dev)
                     A = torch.from_numpy(adv_n[idx]).to(dev)
-                    lp_c, ent, lp, _ = policy_logp(nets[0], b, m, dev)
+                    p2c = ens.p2_context(b) if ens.p2 else None
+                    lp_c, ent, lp, _ = policy_logp(nets[0], b, m, dev, p2_ctx=p2c)
                     old = m[:, M_LOGP]
                     ratio = (lp_c - old).exp()
-                    pol = -torch.min(ratio * A, ratio.clamp(1 - a.clip, 1 + a.clip) * A).mean()
+                    ppo_elem = -torch.min(ratio * A, ratio.clamp(1 - a.clip, 1 + a.clip) * A)
+                    if a.look_distill > 0:
+                        idx_t = torch.from_numpy(idx).to(dev)
+                        lm = look_mask_all[idx_t]
+                        ql = q_look_all[idx_t]
+                        # KL(q_look || pi_theta) on eligible CARD_REWARD rows
+                        opt_lp = lp[:, :ms.K].clamp(min=-50)
+                        ql_ent = -(ql * torch.log(ql.clamp(min=1e-12))).sum(-1)
+                        kl_d = -(ql * opt_lp).sum(-1) - ql_ent
+                        distill_loss = kl_d[lm].mean() if lm.any() else lp.sum() * 0
+                        if a.look_distill_replace:
+                            pol = ppo_elem[~lm].mean() if (~lm).any() else lp.sum() * 0
+                            ent_term = ent[~lm].mean() if (~lm).any() else lp.sum() * 0
+                        else:
+                            pol = ppo_elem.mean()
+                            ent_term = ent.mean()
+                    else:
+                        pol = ppo_elem.mean()
+                        ent_term = ent.mean()
+                        distill_loss = None
                     with torch.no_grad():
                         _, _, lp_bc, _ = policy_logp(bc, b, m, dev)
                     is_bc = torch.isin(b["dtype"], torch.tensor(BC_TYPES, device=dev))
                     kl_bc = ((lp.exp() * (lp.clamp(min=-50) - lp_bc.clamp(min=-50))).sum(-1) * is_bc).sum() / is_bc.sum().clamp(min=1)
-                    loss = pol - a.ent * ent.mean() + beta * kl_bc
+                    loss = pol - a.ent * ent_term + beta * kl_bc
+                    if distill_loss is not None:
+                        loss = loss + a.look_distill * distill_loss
                     opts[0].zero_grad(set_to_none=True); loss.backward()
                     torch.nn.utils.clip_grad_norm_(nets[0].parameters(), 1.0); opts[0].step()
                     with torch.no_grad():
@@ -687,6 +849,10 @@ def loop(a, store, nets, opts, ens, bc, log, rng, dev, pending, it, t0):
                         kl_step = (ls.exp() * (ls.clamp(min=-50) - lp.clamp(min=-50))).sum(-1).mean().item()   # KL(start || now)
                         stats["pol"] += pol.item(); stats["ent"] += ent.mean().item(); stats["kl_bc"] += kl_bc.item()
                         stats["kl_step"] += kl_step; stats["clip"] += ((ratio - 1).abs() > a.clip).float().mean().item(); steps += 1
+                        if distill_loss is not None:
+                            stats["distill"] += distill_loss.item()
+                            nc = ~lm
+                            stats["clip_noncard"] += (((ratio[nc] - 1).abs() > a.clip).float().mean().item() if nc.any() else 0.0)
                     if kl_step > 1.5 * a.target_kl:
                         stop = True; break
                 if stop:
@@ -745,6 +911,24 @@ def loop(a, store, nets, opts, ens, bc, log, rng, dev, pending, it, t0):
             n.eval()
         info["value_loss"] = round(vl / (n_steps * len(nets)), 5); info["value_steps"] = n_steps; info["window_runs"] = len(win)
         info["window_rows"] = int(len(wz))
+        if ens.p2:
+            # Measure pre-PPO lag KL caused by members 1-4 moving during the value steps (both live and EMA)
+            if len(di) > 0:
+                sub = np.arange(min(len(di), a.eval_batch))
+                b_chk = batch_of(di, dfl, sub); m_chk = torch.from_numpy(dm[sub]).to(dev)
+                with torch.no_grad():
+                    lp_pre = policy_logp(nets[0], b_chk, m_chk, dev, p2_ctx=ens.p2_context(b_chk))[2]
+                    lp_live = policy_logp(nets[0], b_chk, m_chk, dev, p2_ctx=ens.p2_context(b_chk, src_nets=nets[1:]))[2]
+                    info["p2_lag_kl_live"] = round(float((lp_pre.exp() * (lp_pre.clamp(min=-50) - lp_live.clamp(min=-50))).sum(-1).mean()), 6)
+            if ens.p2_ema_nets is not None:
+                with torch.no_grad():
+                    for ne, nl in zip(ens.p2_ema_nets, nets[1:]):
+                        for pe, pl in zip(ne.parameters(), nl.parameters()):
+                            pe.lerp_(pl, 1.0 - a.p2_ema)
+                if len(di) > 0:
+                    with torch.no_grad():
+                        lp_ema = policy_logp(nets[0], b_chk, m_chk, dev, p2_ctx=ens.p2_context(b_chk))[2]
+                        info["p2_lag_kl_ema"] = round(float((lp_pre.exp() * (lp_pre.clamp(min=-50) - lp_ema.clamp(min=-50))).sum(-1).mean()), 6)
         if a.milestones:
             info["ms_loss"] = round(vl_ms / (n_steps * len(nets)), 5)
             msst["iters"] += 1
@@ -765,6 +949,8 @@ def loop(a, store, nets, opts, ens, bc, log, rng, dev, pending, it, t0):
         info["version"] = ens.version
         log.write(json.dumps(info) + "\n"); log.flush()
         print("[mtrain] " + json.dumps(info), flush=True)
+        if dev == "cuda":
+            torch.cuda.empty_cache()
 
 
 if __name__ == "__main__":

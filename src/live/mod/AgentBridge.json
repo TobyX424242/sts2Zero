@@ -1,0 +1,11 @@
+{
+  "id": "AgentBridge",
+  "name": "Agent Bridge",
+  "author": "sts2-agent",
+  "description": "Lets a local AI controller (127.0.0.1:47213) play the game through the normal UI paths. Off unless 'Agent mode' is switched on in the small panel (top right).",
+  "version": "1.0.0",
+  "has_pck": false,
+  "has_dll": true,
+  "affects_gameplay": false,
+  "min_game_version": "0.113.1"
+}

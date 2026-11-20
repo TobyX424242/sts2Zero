@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Live play controller (src/live/README.md). Build ONLY through build.sh (or with the same
+       artifacts path): the simulator under src/sims is shared with the training chain (a symlink to the main
+       checkout), and the artifacts path keeps every bin/obj of this build (S3, S2, S0, Sts2Sim.Core included) under
+       src/live/agent/artifacts instead of the projects' own bin/obj directories. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <AssemblyName>LiveAgent</AssemblyName>
+    <RootNamespace>Sts2Sim.Live</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>
+    <TieredPGO>true</TieredPGO>
+    <!-- Methods with loops are jitted optimised at once (no quick JIT, so no on-stack replacement): with OSR on,
+         the simulator's map generation (MapPathPruning, run once per import here, thousands of times per run) crashed
+         with IndexOutOfRange / NullReference / AccessViolation in code that cannot throw them (self-check, 3 of 3
+         multi-run tries; 0 of 2 with DOTNET_TC_OnStackReplacement=0 or DOTNET_TieredCompilation=0). -->
+    <TieredCompilationQuickJitForLoops>false</TieredCompilationQuickJitForLoops>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="artifacts/**" />
+    <ProjectReference Include="../../s3/S3/S3.csproj" />
+    <ProjectReference Include="../../s2/S2/S2.csproj" />
+    <ProjectReference Include="../../s0/S0.Sim/S0.Sim.csproj" />
+    <ProjectReference Include="../../sims/iRyougi-sts2-sim-v113/src/Sts2Sim.Core/Sts2Sim.Core.csproj" />
+  </ItemGroup>
+</Project>

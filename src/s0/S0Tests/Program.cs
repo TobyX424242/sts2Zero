@@ -4,6 +4,7 @@
 //   import   <battle_starts.jsonl> <maxSpecs> [simSeed=S0]      deliverable 3: import + random play to the end
 //   obsv4    [seed] [maxActions] [verbose 0/1]                  layout v4 values on an Aeonglass fight (ObsV4Test.cs)
 //   obsv5    [seed]                                              layout v5 values: modified intent damage, relic counters (ObsV5Test.cs)
+//   leak113  [states=300] [prefix] [character=IRONCLAD] ...      ic113: resampling-clone leak test on v0.113 (Leak113.cs)
 using System.Diagnostics;
 using Sts2Sim.Core.Combat;
 using Sts2Sim.Core.Combat.StateDescription;
@@ -28,6 +29,8 @@ return cmd switch
     "encode" => await EncodeExport.Run(int.Parse(args[1]), int.Parse(args[2]), args[3], args.Length > 4 ? args[4] : "src/s0/data/combat_vocab_v1.json"),
     "obsv4" => await ObsV4Test.Run(args),
     "obsv5" => await ObsV5Test.Run(args),
+    "leak113" => await Leak113.Run(args),
+    "importfirst" => await ImportFirst.Run(args),
     "actions" => await ActionTests.Run(int.Parse(args[1]), int.Parse(args[2]), int.Parse(args[3]), int.Parse(args[4]), args[5], args.Length > 6 ? int.Parse(args[6]) : 3000),
     _ => Usage(),
 };
