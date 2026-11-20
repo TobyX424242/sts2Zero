@@ -58,7 +58,11 @@ public sealed unsafe class MacroBridgeClient : IDisposable
             if (DateTime.UtcNow > deadline) throw new TimeoutException("macro bridge file not created by the server: " + path);
             Thread.Sleep(20);
         }
-        _file = MemoryMappedFile.CreateFromFile(path, FileMode.Open, null, 0, MemoryMappedFileAccess.ReadWrite);
+        // FileShare.ReadWrite: the server keeps its own read-write handle open; Windows refuses a second opener that
+        // denies write sharing (MemoryMappedFile.CreateFromFile(path, ...) shares Read only). Same mapping on Linux.
+        _file = MemoryMappedFile.CreateFromFile(
+            new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete),
+            null, 0, MemoryMappedFileAccess.ReadWrite, HandleInheritability.None, leaveOpen: false);
         _view = _file.CreateViewAccessor(0, 0, MemoryMappedFileAccess.ReadWrite);
         byte* p = null;
         _view.SafeMemoryMappedViewHandle.AcquirePointer(ref p);

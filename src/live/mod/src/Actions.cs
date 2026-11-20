@@ -21,7 +21,7 @@ namespace AgentBridge;
 
 /// <summary>
 /// Multi-step UI sequences (select cards then confirm, open shop then buy, ...). Each step is a click / signal the
-/// UI itself would produce, with short pauses so the owner can follow. Runs on the main thread.
+/// UI itself would produce, with short pauses so the player can follow. Runs on the main thread.
 /// Returns null on success or an error text (which pauses the agent).
 /// </summary>
 internal static class Actions

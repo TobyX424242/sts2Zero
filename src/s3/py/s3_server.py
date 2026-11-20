@@ -35,7 +35,7 @@ GPU options for the macro half (off by default; with both off the macro batch is
 Usage: python -I src/s3/py/s3_server.py --prefix /dev/shm/s3_c --mprefix /dev/shm/s3_m --actors 8
            --weights src/s2/runs/X/weights.pt --macro src/s3/data/macro_s1.pt [--capacity 64] [--mcapacity 256]
 """
-import argparse, json, mmap, os, struct, sys, time
+import argparse, json, mmap, os, struct, sys, tempfile, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 S2PY = os.path.join(HERE, "..", "..", "s2", "py")
@@ -86,7 +86,7 @@ class MacroActor:
         self.mm.close(); os.close(self.fd)
         try:
             os.remove(self.path)
-        except FileNotFoundError:
+        except OSError:      # gone already; Windows: still mapped by the client
             pass
 
 
@@ -104,7 +104,8 @@ def check_mvocab(ens, path, macro_path):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--prefix", default="/dev/shm/s3_c"); ap.add_argument("--mprefix", default="/dev/shm/s3_m")
+    shm = "/dev/shm" if os.path.isdir("/dev/shm") else tempfile.gettempdir()   # Windows / macOS: a regular file in the temp dir
+    ap.add_argument("--prefix", default=os.path.join(shm, "s3_c")); ap.add_argument("--mprefix", default=os.path.join(shm, "s3_m"))
     ap.add_argument("--actors", type=int, default=1)
     ap.add_argument("--capacity", type=int, default=64); ap.add_argument("--mcapacity", type=int, default=256)
     ap.add_argument("--vocab", default=os.path.join(HERE, "..", "..", "s0", "data", "combat_vocab_v113.json"))
@@ -137,12 +138,14 @@ def main():
     ap.add_argument("--mgraphs", type=int, default=0, choices=[0, 1], help="macro: CUDA graphs per (half, row bucket)")
     ap.add_argument("--mbuckets", default="8,16,32,64,128,256", help="macro with --mgraphs 1: row buckets of each half")
     ap.add_argument("--mdtype", default="fp32", choices=["fp32", "bf16"], help="macro: autocast dtype of the forward")
+    ap.add_argument("--threads", type=int, default=0, help="device cpu: torch threads (default 0 = one per CPU this process may "
+                    "run on; small batches run faster with few threads, e.g. 4)")
     ap.add_argument("--value-members", default="", help="macro: comma-separated member indices for value/T_f rows (default '' = all members; e.g. '1,2,3,4' to exclude Member 0)")
     a = ap.parse_args()
     torch.backends.cuda.matmul.allow_tf32 = True
     dev = a.device
     if dev == "cpu":
-        torch.set_num_threads(max(1, len(os.sched_getaffinity(0))))
+        torch.set_num_threads(max(1, a.threads or (len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else os.cpu_count() or 1)))
     dt = {"bf16": torch.bfloat16, "fp16": torch.float16, "fp32": torch.float32}[a.dtype]
     vocab = co.load_vocab(a.vocab)
     state = {"net": None, "cver": 0, "cm": None, "ens": None, "mm": None, "pipe": None, "mserve": None}

@@ -23,7 +23,7 @@ public sealed class AgentSetup
         ["mode"] = "eval", ["sims_full"] = "64", ["obs"] = "5", ["character"] = "ironclad", ["era"] = "6", ["tf_heal"] = "1",
         ["greedy_map"] = "1", ["look_beta"] = "20", ["look_smith"] = "20", ["look_shop"] = "20", ["potion_mix_shrink"] = "0.2",
         ["potion_mix_extra"] = "1", ["fake_merchant"] = "1", ["win_bound"] = "0.001", ["deck_route"] = "1", ["lethal_backstop"] = "1",
-        ["kindle_cap"] = "1",   // live only (owner, 2026-11-20): not part of the chain's evaluation
+        ["kindle_cap"] = "1",   // live only (2026-11-20): not part of the chain's evaluation
     };
 
     public required Dictionary<string, string> Kv;

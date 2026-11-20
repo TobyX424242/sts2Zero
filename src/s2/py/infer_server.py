@@ -60,7 +60,7 @@ class Actor:
         self.mm.close(); os.close(self.fd)
         try:
             os.remove(self.path)
-        except FileNotFoundError:
+        except OSError:      # gone already; Windows: still mapped by the client
             pass
 
 

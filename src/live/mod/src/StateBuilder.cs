@@ -799,6 +799,7 @@ internal static class StateBuilder
             var o = Opt("event_option", "event option " + opt.TextKey);
             o.Json["index"] = i;
             o.Json["key"] = opt.TextKey;
+            o.Json["title_key"] = SafeStr(() => opt.Title?.LocEntryKey);
             o.Json["text"] = U.SafeText(() => opt.Title);
             o.Json["description"] = U.SafeText(() => opt.Description);
             o.Json["locked"] = locked;

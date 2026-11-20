@@ -53,6 +53,7 @@ public static class SelfCheck
         // a small search budget: the test is about import, sync and mapping, not about play strength
         s.Cfg.SimsFull = s.Cfg.SimsFast = s.GetI("sims", 8);
         var st = new Stats();
+        CheckEventKeyMapping(st);
         FakeGame.DiscardOption = s.GetI("discard_option", 0) == 1;
         if (s.Kv.TryGetValue("dump", out string? dumpPath)) FakeGame.Dump = new StreamWriter(dumpPath) { AutoFlush = true };
         for (int i = 0; i < runs; i++)
@@ -83,6 +84,45 @@ public static class SelfCheck
         bool fail = st.Bad.Keys.Any(k => k.StartsWith("unmapped") || k.StartsWith("error") || k == "run_error");
         Console.WriteLine($"[selfcheck] {(fail ? "FAIL" : "PASS")} (mapping failures and errors fail the check; row and fingerprint differences are reported)");
         return fail ? 1 : 0;
+    }
+
+    private static void CheckEventKeyMapping(Stats st)
+    {
+        (string Ev, string Key, string? TitleKey, string Want)[] cases =
+        {
+            ("EVENT.DOLL_ROOM", "抱抱先生", "MR_STRUGGLES.title", "MR_STRUGGLES"),
+            ("EVENT.DOLL_ROOM", "宾邦", "BING_BONG.title", "BING_BONG"),
+            ("EVENT.DOLL_ROOM", "Mr. Struggles", "DAUGHTER_OF_THE_WIND.title", "DAUGHTER_OF_THE_WIND"),
+            ("EVENT.DOLL_ROOM", "DOLL_ROOM.pages.INITIAL.options.TAKE_SOME_TIME", "DOLL_ROOM.pages.INITIAL.options.TAKE_SOME_TIME.title", "TAKE_SOME_TIME"),
+            ("EVENT.DOLL_ROOM", "PROCEED", "PROCEED", "PROCEED"),
+            ("EVENT.TABLET_OF_TRUTH", "TABLET_OF_TRUTH.pages.INITIAL.options.DECIPHER_1", null, "DECIPHER"),
+            ("EVENT.TABLET_OF_TRUTH", "TABLET_OF_TRUTH.pages.DECIPHER_2.options.DECIPHER", null, "DECIPHER"),
+            ("EVENT.TABLET_OF_TRUTH", "TABLET_OF_TRUTH.pages.INITIAL.options.SMASH", null, "SMASH"),
+            ("EVENT.COLOSSAL_FLOWER", "COLOSSAL_FLOWER.pages.INITIAL.options.EXTRACT_CURRENT_PRIZE_1", null, "EXTRACT_CURRENT_PRIZE"),
+            ("EVENT.COLOSSAL_FLOWER", "COLOSSAL_FLOWER.pages.INITIAL.options.REACH_DEEPER_1", null, "REACH_DEEPER"),
+            ("EVENT.COLOSSAL_FLOWER", "COLOSSAL_FLOWER.pages.REACH_DEEPER_1.options.EXTRACT_CURRENT_PRIZE_2", null, "EXTRACT_CURRENT_PRIZE"),
+            ("EVENT.COLOSSAL_FLOWER", "COLOSSAL_FLOWER.pages.REACH_DEEPER_1.options.REACH_DEEPER_2", null, "REACH_DEEPER"),
+            ("EVENT.COLOSSAL_FLOWER", "COLOSSAL_FLOWER.pages.REACH_DEEPER_2.options.POLLINOUS_CORE", null, "POLLINOUS_CORE"),
+            ("EVENT.TRIAL", "TRIAL.pages.MERCHANT.options.GUILTY", null, "MERCHANT_GUILTY"),
+            ("EVENT.TRIAL", "TRIAL.pages.MERCHANT.options.INNOCENT", null, "MERCHANT_INNOCENT"),
+            ("EVENT.TRIAL", "TRIAL.pages.NOBLE.options.GUILTY", null, "NOBLE_GUILTY"),
+            ("EVENT.TRIAL", "TRIAL.pages.NOBLE.options.INNOCENT", null, "NOBLE_INNOCENT"),
+            ("EVENT.TRIAL", "TRIAL.pages.NONDESCRIPT.options.GUILTY", null, "NONDESCRIPT_GUILTY"),
+            ("EVENT.TRIAL", "TRIAL.pages.NONDESCRIPT.options.INNOCENT", null, "NONDESCRIPT_INNOCENT"),
+            ("EVENT.TRIAL", "TRIAL.pages.INITIAL.options.ACCEPT", null, "ACCEPT"),
+            ("EVENT.TRIAL", "TRIAL.pages.INITIAL.options.MERCHANT_GUILTY", null, "MERCHANT_GUILTY"),
+            ("EVENT.SLIPPERY_BRIDGE", "SLIPPERY_BRIDGE.pages.INITIAL.options.HOLD_ON_0", null, "HOLD_ON_0"),
+            ("EVENT.SELF_HELP_BOOK", "SELF_HELP_BOOK.pages.INITIAL.options.READ_THE_BACK_LOCKED", null, "READ_THE_BACK"),
+        };
+        foreach (var (ev, key, tk, want) in cases)
+        {
+            string got = Controller.EventKey(ev, key, tk);
+            if (got != want)
+            {
+                st.Add(st.Bad, "error:event_key_map");
+                st.Example($"event_key_map {ev} key={key} title_key={tk}: got {got}, want {want}");
+            }
+        }
     }
 
     // ------------------------------------------------------------------ row comparison

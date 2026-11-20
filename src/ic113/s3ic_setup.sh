@@ -2,7 +2,7 @@
 # Server tree of the s3ic chain (src/ic113/CHAIN.md): /root/exp/ic113/chain, separate from /root/exp/ic113 so that the
 # chain's build never replaces binaries other jobs there run from. Copies /root/exp/ic113/research (sources, data files, the
 # patched v0.113.1.1 simulator; no bin / obj / out / runs), overlays the branch's tracked files from UPLOAD (a tar.gz made on
-# the laptop: src/{s0,s2,s3,ic113,value_v1,value_v2} as committed on branch ic113), links the venv and .NET of
+# the laptop: src/{s0,s2,s3,ic113,value_v1,s1} as committed on branch ic113), links the venv and .NET of
 # /root/sts2, builds S3 (and with it S2, S0) in the chain tree.
 # usage: src/ic113/s3ic_setup.sh UPLOAD.tgz [TREE (/root/exp/ic113/chain)]
 #   laptop: git -C .worktrees/ic113 archive --format=tar.gz -o /tmp/x.tgz HEAD src/s0 src/s2 src/s3 \

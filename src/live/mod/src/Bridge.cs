@@ -89,7 +89,7 @@ internal static class Bridge
     public static bool ShopPurchaseInFlight => _shopTask != null && !_shopTask.IsCompleted;
     public static void TrackShopPurchase(Task t) => _shopTask = t;
     public static bool Busy => _pending != null || _exec != null || _start != null;
-    /// <summary>Multi-step actions stop between steps when the owner pauses or switches agent mode off.</summary>
+    /// <summary>Multi-step actions stop between steps when the player pauses or switches agent mode off.</summary>
     public static bool Halted => !AgentMode || Paused;
     public const string HaltText = "stopped between steps: agent mode off or paused (finish this screen by hand)";
 
@@ -460,7 +460,7 @@ internal static class Bridge
         if (U.NowMs < _pending.Due) return;
         PendingAct pa = _pending;
         _pending = null;
-        // The owner may have clicked something during the delay: only act on the exact state the controller saw.
+        // The player may have clicked something during the delay: only act on the exact state the controller saw.
         Snapshot sWithOpts = StateBuilder.Build(_probe, true, withOptions: true);
         if (!_rawStable || sWithOpts.Fingerprint != pa.Fp)
         {
@@ -573,7 +573,7 @@ internal static class Bridge
     public static void TogglePause()
     {
         if (Paused) ResumeCmd();
-        else PauseCmd("paused by owner (F9 / panel)");
+        else PauseCmd("paused by the player (F9 / panel)");
     }
 
     // ------------------------------------------------------------------ auto steps (no decision involved)

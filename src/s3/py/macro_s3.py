@@ -80,7 +80,7 @@ import os, sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, "..", "..")
-sys.path.insert(0, os.path.join(ROOT, "value_v1")); sys.path.insert(0, os.path.join(ROOT, "value_v2"))
+sys.path.insert(0, os.path.join(ROOT, "value_v1")); sys.path.insert(0, os.path.join(ROOT, "s1"))
 sys.dont_write_bytecode = True
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
@@ -725,7 +725,7 @@ def load_checkpoint(path, dev):
 
 
 def s1_member_dirs():
-    base = os.path.join(ROOT, "value_v2", "runs", "macro")
+    base = os.path.join(ROOT, "s1", "runs", "macro")
     return [os.path.join(base, "noattn_light")] + [os.path.join(base, f"noattn_light_seed{i}") for i in range(1, 5)]
 
 

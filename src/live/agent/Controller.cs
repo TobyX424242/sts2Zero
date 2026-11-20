@@ -21,7 +21,7 @@ public sealed class Decision
     public int Option = -1;
     public int? Target;
     public List<int>? Cards;
-    /// <summary>Send `pause` with this reason (the owner plays the step by hand and resumes).</summary>
+    /// <summary>Send `pause` with this reason (the player plays the step by hand and resumes).</summary>
     public string? Pause;
     /// <summary>Nothing to do (main menu, waiting).</summary>
     public bool Wait;
@@ -164,7 +164,7 @@ public sealed class Controller
 
     private readonly Random _sphereRng = new();
 
-    /// <summary>Crystal Sphere minigame: a uniformly random hidden cell while divinations are left (owner, 2026-11-20:
+    /// <summary>Crystal Sphere minigame: a uniformly random hidden cell while divinations are left (2026-11-20:
     /// the minigame is pure chance; the game's own AutoSlay plays it the same way), then proceed. The rewards it
     /// gives open the normal rewards / card-reward screens, decided by the agent.</summary>
     private Decision Sphere(JsonObject st)
@@ -306,6 +306,51 @@ public sealed class Controller
         return k.EndsWith("_LOCKED", StringComparison.Ordinal) ? k[..^7] : k;
     }
 
+    /// <summary>
+    /// Normalises a live game event option's key to the exact <see cref="EventOption.Key"/> used by the simulator
+    /// (and hashed by <see cref="ML.EventBucket"/>):
+    /// <list type="bullet">
+    /// <item><c>DOLL_ROOM</c> page 2: the game puts the localised relic title in <c>TextKey</c>, while the simulator
+    /// uses <c>relic.Id.Entry</c> (<c>MR_STRUGGLES</c>, <c>BING_BONG</c>, <c>DAUGHTER_OF_THE_WIND</c>); resolved
+    /// language-independently from <c>title_key</c> (<c>&lt;RELIC_ID&gt;.title</c>).</item>
+    /// <item><c>TABLET_OF_TRUTH</c> page 1: <c>DECIPHER_1</c> -> <c>DECIPHER</c>.</item>
+    /// <item><c>COLOSSAL_FLOWER</c> pages 1-2: <c>EXTRACT_CURRENT_PRIZE_N</c> -> <c>EXTRACT_CURRENT_PRIZE</c>,
+    /// <c>REACH_DEEPER_N</c> -> <c>REACH_DEEPER</c>.</item>
+    /// <item><c>TRIAL</c> verdict pages: <c>TRIAL.pages.&lt;DEFENDANT&gt;.options.GUILTY|INNOCENT</c> ->
+    /// <c>&lt;DEFENDANT&gt;_GUILTY|INNOCENT</c>.</item>
+    /// </list>
+    /// </summary>
+    public static string EventKey(string? eventId, string? key, string? titleKey = null, string? relic = null)
+    {
+        string k = EventKey(key);
+        if (string.IsNullOrEmpty(eventId)) return k;
+        string ev = J.ModelId(eventId, "EVENT");
+        if (ev == "EVENT.DOLL_ROOM" && (key is null || !key.Contains(".options.", StringComparison.Ordinal)) && k != "PROCEED")
+        {
+            if (!string.IsNullOrEmpty(relic)) return J.ModelId(relic, "RELIC")[6..];
+            if (!string.IsNullOrEmpty(titleKey))
+            {
+                int dot = titleKey.IndexOf('.');
+                return dot > 0 ? titleKey[..dot] : titleKey;
+            }
+        }
+        if (ev == "EVENT.TABLET_OF_TRUTH" && k.StartsWith("DECIPHER_", StringComparison.Ordinal))
+            return "DECIPHER";
+        if (ev == "EVENT.COLOSSAL_FLOWER")
+        {
+            if (k.StartsWith("EXTRACT_CURRENT_PRIZE_", StringComparison.Ordinal)) return "EXTRACT_CURRENT_PRIZE";
+            if (k.StartsWith("REACH_DEEPER_", StringComparison.Ordinal)) return "REACH_DEEPER";
+        }
+        if (ev == "EVENT.TRIAL" && k is "GUILTY" or "INNOCENT" && !string.IsNullOrEmpty(key))
+        {
+            string[] parts = key.Split('.');
+            int pi = Array.IndexOf(parts, "pages");
+            if (pi >= 0 && pi + 1 < parts.Length && !string.IsNullOrEmpty(parts[pi + 1]))
+                return parts[pi + 1] + "_" + k;
+        }
+        return k;
+    }
+
     /// <summary>The event of an EVENT / ANCIENT screen: screen_detail (the game's ModelId.Entry, "EVENT.X" accepted), else
     /// the last event room of the run save's map point history.</summary>
     private static string? CurrentEventId(JsonObject st)
@@ -350,7 +395,7 @@ public sealed class Controller
             VisibleContent? content = string.IsNullOrEmpty(relic) ? null
                 : new VisibleContent(J.ModelId(relic, "RELIC")[6..], ImmutableArray<VisibleValue>.Empty, ImmutableArray<VisibleContent>.Empty);
             bool locked = x.Bool("locked") || (x.Str("key")?.EndsWith("_LOCKED", StringComparison.Ordinal) ?? false);
-            sim.Add(new EventOption(EventKey(x.Str("key")), locked ? null : () => Task.CompletedTask, content));
+            sim.Add(new EventOption(EventKey(evId, x.Str("key"), x.Str("title_key"), relic), locked ? null : () => Task.CompletedTask, content));
         }
         EventOption pick = await Agent!.ChooseEventOptionAsync(sim);
         int k = sim.FindIndex(e => ReferenceEquals(e, pick));

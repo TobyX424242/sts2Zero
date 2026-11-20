@@ -125,7 +125,7 @@ internal static class Screens
             p.Wait = "a popup is open: dismiss it by hand";
             return;
         }
-        // Deck view / settings-like screens the owner may open.
+        // Deck view / settings-like screens the player may open.
         var capstone = NCapstoneContainer.Instance?.CurrentCapstoneScreen;
         if (capstone != null)
         {
@@ -168,7 +168,7 @@ internal static class Screens
         }
         if (!mapOpen && overlay is NCrystalSphereScreen sph)
         {
-            // Crystal Sphere minigame (owner, 2026-11-20: purely random, the agent clicks random hidden cells as the
+            // Crystal Sphere minigame (2026-11-20: purely random, the agent clicks random hidden cells as the
             // game's own AutoSlay CrystalSphereScreenHandler does; the rewards that follow are the agent's choice)
             p.Screen = "CRYSTAL_SPHERE"; p.Detail = "NCrystalSphereScreen";
             int left = SphereDivinations(sph);
