@@ -1,0 +1,4 @@
+date_utc,weights_segment,ascension,seed,outcome,final_floor,last_boss,hp_after_last_boss,max_hp
+2026-11-19,21,0,23MWTSN4RT0S,won,48,QUEEN_BOSS,95,138
+2026-11-19,21,6,WN37F56EL47T,won,48,TEST_SUBJECT_BOSS,82,97
+2026-11-20,29,10,CJ94LWYLPWZC,won,49,QUEEN_BOSS,52,80

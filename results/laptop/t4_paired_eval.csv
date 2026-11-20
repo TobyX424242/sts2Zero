@@ -1,0 +1,5 @@
+arm,description,runs,wins,win_rate,ci95_low,ci95_high,diff_vs_base_pp,arm_only_wins,base_only_wins,mcnemar_p,act1_cleared,act2_cleared,act3_boss1_won,act3_boss1_entered,act3_boss2_entered_hp_share,act3_boss2_entered_potions,act3_boss2_won,act3_boss2_entered
+base,"all 5 value members price T_f; potion_mix phase 1 (vbar_s009)",320,117,36.6,31.5,42.0,,,,,88,76,201,231,0.592,1.35,117,201
+m14,"--value-members 1,2,3,4 (members 1-4 price T_f)",320,110,34.4,29.4,39.7,-2.2,43,50,0.534,88,75,196,232,0.610,1.51,110,196
+p2,"potion_mix_phase=2 with the n=80 probe table, VMIX_ASC=10",320,117,36.6,31.5,42.0,0.0,27,27,1.000,88,75,189,230,0.616,1.37,117,189
+both,m14 + p2,320,119,37.2,32.1,42.6,0.6,47,45,0.917,88,75,187,229,0.616,1.66,119,187

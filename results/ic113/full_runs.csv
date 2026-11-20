@@ -1,0 +1,9 @@
+stage,arm,character,ascension,seeds,runs_counted,wins,win_rate,ci95_low,ci95_high,mean_floor,act1_cleared,act2_cleared,note
+day0_port_sanity,converted Defect v3 networks (s3v3_s005) on v0.113,defect,10,Y000000-Y001023,1019,475,46.6,43.6,49.7,42.4,88,76,tf_heal=0; v0.111 reference 44.8% (458/1020) on a different panel
+day0_step0,converted Defect macro + converted Defect combat,ironclad,10,Y000000-Y000511,512,0,0.0,0.0,0.8,10.3,2,1,7 stalemates (SLIMES_WEAK)
+day0_step0,converted Defect macro + Defect potion table,ironclad,10,Y000000-Y000511,512,0,0.0,0.0,0.7,10.3,1,0,3 stalemates
+day0_step0,converted Defect macro + converted Defect combat,ironclad,0,Y000000-Y000255,254,13,5.1,3.0,8.6,19.3,26,12,
+day0_step0,S1 human macro + converted Defect combat,ironclad,10,Y000000-Y000511,512,0,0.0,0.0,0.8,9.5,1,0,
+day0_step0,S1 human macro + converted Defect combat,ironclad,0,Y000000-Y000255,251,6,2.4,1.1,5.1,17.8,24,6,
+warmup,converted Defect macro + warmed combat (combat_warm_w2),ironclad,10,Y000000-Y000511,512,16,3.1,1.9,5.0,19.9,25,13,paired diff vs step 0 +3.2 (+1.6 to +4.7)
+warmup,converted Defect macro + warmed combat (combat_warm_w2),ironclad,0,Y000000-Y000255,255,135,52.9,46.8,59.0,39.7,83,68,paired diff vs step 0 +47.8 (+41.4 to +54.3)

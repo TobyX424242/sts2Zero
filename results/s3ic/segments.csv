@@ -1,0 +1,31 @@
+segment,start_utc,end_utc,actors,planned_length_h,segment_runs,status,evaluated,cumulative_runs_after,changes_and_notes
+0,2026-11-18 12:19,2026-11-18 14:25,60,2,45637,completed,yes,45637,chain start; curriculum stage 1; potion_mix without Vbar means
+1,2026-11-18 14:26,2026-11-18 16:34,60,2,39426,completed,yes,85063,curriculum stage 2
+2,2026-11-18 16:34,2026-11-18 18:40,60,2,38156,completed,yes,123219,evaluation of this segment is the first with win_bound=0.001
+3,2026-11-18 18:41,2026-11-18 20:47,60,2,37827,completed,yes,161046,first self-play with win_bound=0.001; curriculum stage 3 afterwards
+4,2026-11-18 20:47,2026-11-18 22:54,60,2,39550,completed,yes,200596,
+5,2026-11-18 22:54,2026-11-19 01:00,60,2,38927,completed,yes,239523,
+6,2026-11-19 01:00,2026-11-19 03:11,60,2,38748,completed,yes,278271,chain paused afterwards to move to an interruptible server
+7,2026-11-19 06:07,2026-11-19 06:39,60,2,10320,recovered (planned restart),yes,288591,restarted to switch on deck_route and lethal_backstop and test 84 actors; its evaluation is the first with both keys
+8,2026-11-19 06:39,2026-11-19 07:13,84,2,9787,recovered (planned restart),yes,298378,84 actors and 3 combat servers; slower; reverted to 60 / 2
+9,2026-11-19 07:13,2026-11-19 07:15,60,2,281,not adopted,no,298659,interrupted before its first periodic carry; its 281 run records still count in the run total
+10,2026-11-19 07:21,2026-11-19 07:21,60,2,0,not adopted,no,,interrupted with 0 runs
+11,2026-11-19 07:33,2026-11-19 07:54,60,2,6123,recovered (interruption),yes,304782,
+12,2026-11-19 07:57,2026-11-19 08:28,60,2,9816,recovered (interruption),yes,314598,
+13,2026-11-19 08:29,2026-11-19 08:33,60,2,0,not adopted,no,,interrupted with 0 runs
+14,2026-11-19 08:33,2026-11-19 08:53,60,2,,lost with the host,no,,the server's host was lost; the chain was restored from backup on another server
+15,2026-11-19 09:51,2026-11-19 09:54,36,2,0,failed,no,,restored tree missing a Python module; trainers wrote no weights
+16,2026-11-19 09:55,2026-11-19 09:58,36,2,0,failed,no,,same failure
+17,2026-11-19 09:59,2026-11-19 10:02,36,2,0,failed,no,,same failure; supervisor stopped after three failures
+18,2026-11-19 10:04,2026-11-19 10:47,36,2,4273,recovered (planned move),yes,298996,run counter rebased to 294723 at the restore (only backed-up run records count)
+19,2026-11-19 10:59,2026-11-19 11:05,36,2,314,recovered (planned restart),yes,299310,restarted to switch on --milestones
+20,2026-11-19 11:05,2026-11-19 11:39,36,2,3411,completed (stopped early by the guard),yes,302721,first segment with --milestones; an inference server died (GPU out of memory)
+21,2026-11-19 11:40,2026-11-19 12:44,36,2,7397,recovered (planned move),yes,310118,
+22,2026-11-19 12:48,2026-11-19 14:47,42,2,31667,recovered (planned move),yes,341785,
+23,2026-11-19 15:41,2026-11-19 17:47,32,2,20682,completed,yes,362467,
+24,2026-11-19 17:48,2026-11-19 19:53,32,2,20382,completed,yes,382849,
+25,2026-11-19 19:53,2026-11-19 21:58,32,2,20504,completed,yes,403353,
+26,2026-11-19 21:59,2026-11-20 00:05,32,2,20922,completed,yes,424275,
+27,2026-11-20 00:06,2026-11-20 01:29,32,2,13116,recovered (planned move),yes,437391,
+28,2026-11-20 01:32,2026-11-20 04:39,60,3,52820,completed,yes,490211,first 3-hour segment; curriculum stage 4 afterwards
+29,2026-11-20 04:40,2026-11-20 07:51,60,3,38599,completed,yes,528810,stage 4 mix; alpha 0.85; act-3 boss practice; shadow combat trainer (d=256) beside the playing network
