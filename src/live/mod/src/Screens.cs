@@ -294,8 +294,11 @@ internal static class Screens
                 var rr = NRestSiteRoom.Instance;
                 if (rr == null) { p.Wait = "rest site loading"; return; }
                 bool anyOpt = rr.Options.Any(o => U.Usable(rr.GetButtonForOption(o)));
-                p.Ready = anyOpt || U.Usable(rr.ProceedButton);
-                if (!p.Ready) p.Wait = "rest site busy";
+                bool hasRemainingEnabled = rr.Options.Any(o => o.IsEnabled);
+                // Miniature Tent leaves ProceedButton enabled after the first option while remaining options are
+                // temporarily disabled/fading during the next option's animation; wait until they are usable again.
+                p.Ready = anyOpt || (!hasRemainingEnabled && U.Usable(rr.ProceedButton));
+                if (!p.Ready) p.Wait = hasRemainingEnabled ? "rest site options animating" : "rest site busy";
                 return;
             }
             case MerchantRoom:
