@@ -147,6 +147,7 @@ public sealed class Controller
             "COMBAT_SELECT" => await CombatSelectAsync(st),
             "TREASURE" => Treasure(st),
             "CRYSTAL_SPHERE" => Sphere(st),
+            "FAKE_MERCHANT" => FakeMerchant(st),
             "OTHER" when st.Str("screen_detail") == "NChooseARelicSelection" => await RelicChoiceAsync(st),
             "OTHER" when (st.Str("screen_detail") ?? "").StartsWith("modal:") =>
                 Decision.Paused($"a popup blocks the game ({st.Str("screen_detail")}): close it (tip: switch tutorials off), then resume"),
@@ -177,6 +178,12 @@ public sealed class Controller
         }
         if (Opts(st, "proceed") is { Count: > 0 } p) return Decision.Act(p[0].I, "crystal sphere: proceed");
         return Decision.Paused("crystal sphere without cells or proceed");
+    }
+
+    private static Decision FakeMerchant(JsonObject st)
+    {
+        if (Opts(st, "leave", "proceed") is { Count: > 0 } o) return Decision.Act(o[0].I, "fake merchant: leave");
+        return Decision.Paused("fake merchant without leave / proceed");
     }
 
     private static Decision Treasure(JsonObject st)
@@ -697,6 +704,32 @@ public sealed class Controller
         var (si, so) = sel[0];
         var specs = so.Objs("cards").Select(CardSpec.Read).ToList();
         int min = so.Int("min", 1), max = so.Int("max", specs.Count);
+        bool isGamblingChip = (so.Str("purpose") ?? "").Contains("gambling_chip", StringComparison.OrdinalIgnoreCase)
+            || (so.Str("prompt_key") ?? "").StartsWith("GAMBLING_CHIP", StringComparison.OrdinalIgnoreCase);
+        if (isGamblingChip && st.Obj("combat") is { } gcCombat)
+        {
+            Shadow sh = await EnsureFightAsync(st);
+            sh.SimAnswers.Clear();
+            sh.Sync(gcCombat, st.Obj("run"));
+            var hand = sh.State!.Players[0].PlayerCombatState!.Hand.Cards;
+            var (handIdx, v0, v1) = await Agent!.ChooseGamblingChipAsync(sh.State!, Math.Min(max, specs.Count));
+            var used = new HashSet<int>();
+            var idx = new List<int>();
+            foreach (int hi in handIdx)
+            {
+                if (hi < 0 || hi >= hand.Count) continue;
+                string key = CardSpec.KeyOf(hand[hi]);
+                int j = hi < specs.Count && !used.Contains(hi) && specs[hi].Key == key
+                    ? hi
+                    : Enumerable.Range(0, specs.Count).FirstOrDefault(k => !used.Contains(k) && specs[k].Key == key, -1);
+                if (j >= 0) { used.Add(j); idx.Add(j); }
+            }
+            if (idx.Count < min) return Decision.Paused($"gambling chip: picked {idx.Count} cards, need at least {min}");
+            string pickedNames = idx.Count == 0 ? "keep all" : string.Join(", ", idx.Select(i => $"{specs[i].Id}+{specs[i].Upgrade}"));
+            string why = $"gambling chip (EV {v0:F4} -> {v1:F4}, {v1 - v0:+0.0000;-0.0000;+0.0000}): {pickedNames}";
+            if (idx.Count == 0 && skip.Count > 0) return Decision.Act(skip[0].I, why);
+            return new Decision { Option = si, Cards = idx, Why = why };
+        }
         // 1. the answer RunAgent gave to the same prompt in the shadow fight, or the prompt answers of its search action
         foreach (var keys in (Fight?.SimAnswers ?? new()).Concat(Fight?.PlannedKeys ?? new()).ToList())
         {

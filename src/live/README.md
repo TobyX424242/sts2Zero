@@ -86,7 +86,7 @@ State object:
   "agent_mode": bool, "paused": bool, "pause_reason": str|null,
   "requested_run": {"character": "IRONCLAD", "ascension": 7, "seed": null} | null,   // set by the panel button until a run starts
   "screen": "MAIN_MENU" | "MAP" | "COMBAT" | "COMBAT_SELECT" | "CARD_REWARD" | "REWARDS" | "EVENT" | "ANCIENT"
-           | "REST" | "SHOP" | "CARD_SELECT" | "TREASURE" | "CRYSTAL_SPHERE" | "GAME_OVER" | "OTHER",
+           | "REST" | "SHOP" | "CARD_SELECT" | "TREASURE" | "CRYSTAL_SPHERE" | "FAKE_MERCHANT" | "GAME_OVER" | "OTHER",
   "screen_detail": str,       // e.g. the node / screen class name, the event id, the selection prompt purpose
   "run": null | {
      "character", "ascension", "seed", "act_index", "act_ids", "floor", "hp", "max_hp", "gold",
@@ -123,13 +123,14 @@ option says so.
 | COMBAT_SELECT (hand/pile choice inside a fight) | `select` {`purpose`, `min`, `max`, `cards`: [CARD], `source`} → `act` with `cards` |
 | MAP | `map` {`col`, `row`, `type`} |
 | CARD_REWARD | `card` {`id`, `upgrade`, ...}; `skip` |
-| REWARDS | `reward` {`index`, `type`: GOLD/POTION/RELIC/CARD/..., `id`, `amount`}; `proceed` |
+| REWARDS | `reward` {`index`, `type`: GOLD/POTION/RELIC/CARD/..., `id`, `amount`, optional `belt_full`}; `discard_potion` {`slot`, `id`} (when a potion reward is present on a full belt); `proceed` |
 | EVENT, ANCIENT | `event_option` {`index`, `key` (option text key), `title_key`, `text`, `locked`}; ANCIENT options carry `relic` id |
 | REST | `rest_option` {`id` (HEAL, SMITH, ...)} |
 | SHOP | `buy` {`item`: card/relic/potion/remove, `id`, `price`}; `leave` |
 | CARD_SELECT (deck selection: upgrade, remove, transform, ...) | `select` as above, plus `skip` when cancelling is allowed |
 | TREASURE | `open`, `relic` {`id`}, `proceed` |
 | CRYSTAL_SPHERE | `sphere_cell` {`x`, `y`, `divinations`} per clickable hidden cell while divinations are left; `proceed` |
+| FAKE_MERCHANT | `leave` (closes inventory if open and clicks proceed) |
 | GAME_OVER | `to_menu` |
 | MAIN_MENU | (none; runs start through `start_run`) |
 
@@ -210,6 +211,8 @@ Whoever changes the protocol updates this section and adds a line to the change 
 - v1 (2026-11-20): screen `CRYSTAL_SPHERE` (was OTHER, played by hand) with options `sphere_cell` and `proceed`.
 - v1 (2026-11-20): `event_option` carries the optional `title_key`; the controller normalises event option keys
   (DOLL_ROOM, TABLET_OF_TRUTH, COLOSSAL_FLOWER, TRIAL). Additive.
+- v1 (2026-11-20): screen `FAKE_MERCHANT` (was OTHER, played by hand) with option `leave` (controller leaves by default). Additive.
+- v1 (2026-11-23): `REWARDS` reports `POTION` rewards even when the belt is full (`belt_full: true`) and adds `discard_potion` {`slot`, `id`} options (via `DiscardPotionGameAction`) so `potion_mix` can swap potions automatically; `NCombatPileCardSelectScreen` falls back to `_grid.CurrentlyDisplayedCards` / `_pile` when `_cards` is empty. Additive.
 
 ## Mod notes (AgentBridge)
 

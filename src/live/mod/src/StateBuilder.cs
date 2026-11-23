@@ -356,6 +356,7 @@ internal static class StateBuilder
             case "TREASURE": return TreasureOptions(p);
             case "GAME_OVER": return GameOverOptions(p);
             case "CRYSTAL_SPHERE": return SphereOptions(p);
+            case "FAKE_MERCHANT": return FakeMerchantOptions(p);
             case "OTHER":
                 if (p.Overlay is NChooseARelicSelection rs) return RelicSelectOptions(rs);
                 return new List<Option>();
@@ -594,6 +595,17 @@ internal static class StateBuilder
         if (p.Overlay is NCardGridSelectionScreen grid)
         {
             var cards = (U.GetRaw(grid, "_cards") as IEnumerable<CardModel>)?.ToList() ?? new List<CardModel>();
+            // NCombatPileCardSelectScreen leaves _cards empty and populates _grid from _pile / _filter.
+            if (cards.Count == 0)
+            {
+                var cg = U.Get<NCardGrid>(grid, "_grid");
+                if (cg != null) cards = cg.CurrentlyDisplayedCards.ToList();
+                if (cards.Count == 0 && U.GetRaw(grid, "_pile") is CardPile pile)
+                {
+                    var filter = U.GetRaw(grid, "_filter") as Func<CardModel, bool>;
+                    cards = (filter == null ? pile.Cards : pile.Cards.Where(filter)).ToList();
+                }
+            }
             U.TryGetStruct(grid, "_prefs", out CardSelectorPrefs prefs);
             int min = prefs.MinSelect, max = prefs.MaxSelect;
             if (max <= 0) { min = Math.Max(0, min); max = Math.Max(1, max); }
@@ -734,18 +746,50 @@ internal static class StateBuilder
         _ => r.GetType().Name.ToUpperInvariant(),
     };
 
+    private static void AddDiscardPotionOptions(List<Option> list, Probe p)
+    {
+        Player? me = p.Me;
+        if (me == null) return;
+        bool locked = false;
+        try { locked = RunManager.Instance.IsPotionUseLocked || !me.CanUseOrRemovePotions; } catch { }
+        if (locked) return;
+        var slots = me.PotionSlots.ToList();
+        for (int s = 0; s < slots.Count; s++)
+        {
+            PotionModel? pot = slots[s];
+            if (pot == null) continue;
+            int slot = s;
+            var o = Opt("discard_potion", "discard potion " + pot.Id.Entry);
+            o.Json["slot"] = slot;
+            o.Json["id"] = pot.Id.Entry;
+            o.Validate = NoArgs;
+            o.Exec = async _ =>
+            {
+                if (me.GetPotionAtSlotIndex(slot) != pot) return "potion is no longer in that slot";
+                // Same action NPotionPopup.OnDiscardButtonPressed enqueues.
+                var action = new DiscardPotionGameAction(me, (uint)slot, CombatManager.Instance.IsInProgress);
+                RunManager.Instance.ActionQueueSynchronizer.RequestEnqueue(action);
+                await Bridge.Delay(250);
+                return null;
+            };
+            list.Add(o);
+        }
+    }
+
     private static List<Option> RewardOptions(Probe p)
     {
         var list = new List<Option>();
         if (p.Overlay is NRewardsScreen scr && NMapScreen.Instance?.IsOpen != true)
         {
             bool canTakePotion = p.Me?.HasOpenPotionSlots ?? false;
+            bool hasPotionReward = false;
             var buttons = U.FindAll<NRewardButton>(scr).Where(b => U.Usable(b) && b.Reward != null).ToList();
             for (int i = 0; i < buttons.Count; i++)
             {
                 NRewardButton b = buttons[i];
                 Reward r = b.Reward!;
-                if (r is PotionReward && !canTakePotion) continue; // the game would refuse: potion belt full
+                bool isPotion = r is PotionReward;
+                if (isPotion) hasPotionReward = true;
                 var o = Opt("reward", "reward " + RewardType(r));
                 o.Json["index"] = i;
                 o.Json["type"] = RewardType(r);
@@ -755,12 +799,16 @@ internal static class StateBuilder
                     case PotionReward pr: o.Json["id"] = pr.Potion?.Id.Entry; break;
                     case RelicReward rr: o.Json["id"] = rr.Relic?.Id.Entry; break;
                 }
+                if (isPotion && !canTakePotion) o.Json["belt_full"] = true;
                 o.Json["linked"] = b.GetParent() is not null && U.HasAncestorNamed(b, "Linked", scr);
                 o.Json["text"] = U.SafeText(() => r.Description);
-                o.Validate = NoArgs;
+                o.Validate = isPotion && !canTakePotion
+                    ? _ => "potion belt is full (discard a potion first)"
+                    : NoArgs;
                 o.Exec = _ => Click(b, "reward button");
                 list.Add(o);
             }
+            if (hasPotionReward && !canTakePotion) AddDiscardPotionOptions(list, p);
             var proceed = U.FindFirst<NProceedButton>(scr);
             if (U.Usable(proceed))
             {
@@ -953,6 +1001,23 @@ internal static class StateBuilder
             var o = Opt("proceed", "leave crystal sphere");
             o.Validate = NoArgs;
             o.Exec = _ => Click(proceed, "proceed button");
+            list.Add(o);
+        }
+        return list;
+    }
+
+    // ---------------------------------------------------------------- fake merchant
+    private static List<Option> FakeMerchantOptions(Probe p)
+    {
+        var list = new List<Option>();
+        var fm = Screens.FakeMerchantNode();
+        if (fm == null) return list;
+        var proceed = U.Get<NProceedButton>(fm, "_proceedButton") ?? U.FindFirst<NProceedButton>(fm);
+        if (U.Usable(proceed) || fm.Inventory?.IsOpen == true)
+        {
+            var o = Opt("leave", "leave fake merchant");
+            o.Validate = NoArgs;
+            o.Exec = _ => Actions.FakeMerchantLeave(fm);
             list.Add(o);
         }
         return list;

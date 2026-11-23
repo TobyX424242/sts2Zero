@@ -15,6 +15,7 @@ using MegaCrit.Sts2.Core.Nodes;
 using MegaCrit.Sts2.Core.Nodes.Combat;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
 using MegaCrit.Sts2.Core.Nodes.Events;
+using MegaCrit.Sts2.Core.Nodes.Events.Custom;
 using MegaCrit.Sts2.Core.Nodes.Events.Custom.CrystalSphere;
 using MegaCrit.Sts2.Core.Events.Custom.CrystalSphereEvent;
 using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
@@ -265,6 +266,17 @@ internal static class Screens
                 var layout = NEventRoom.Instance?.Layout;
                 if (layout == null)
                 {
+                    var fm = FakeMerchantNode();
+                    if (fm != null)
+                    {
+                        p.Screen = "FAKE_MERCHANT";
+                        p.Detail = "NFakeMerchant";
+                        p.Key = "FAKE_MERCHANT:" + rs.TotalFloor;
+                        var proceed = U.Get<NProceedButton>(fm, "_proceedButton") ?? U.FindFirst<NProceedButton>(fm);
+                        p.Ready = U.Visible(fm) && !game.Transition.InTransition && (U.Usable(proceed) || fm.Inventory?.IsOpen == true);
+                        if (!p.Ready) p.Wait = "fake merchant loading";
+                        return;
+                    }
                     p.Screen = "OTHER"; p.Detail = "event:" + ev.Id.Entry + " (custom event screen)";
                     p.Wait = "custom event screen: play it by hand";
                     return;
@@ -354,6 +366,13 @@ internal static class Screens
     public static NClickableControl? AncientDialogueHitbox(NEventLayout layout)
     {
         return U.Get<NClickableControl>(layout, "_dialogueHitbox") ?? layout.GetNodeOrNull<NClickableControl>("%DialogueHitbox");
+    }
+
+    public static NFakeMerchant? FakeMerchantNode()
+    {
+        var er = NEventRoom.Instance;
+        if (er == null) return null;
+        return er.CustomEventNode as NFakeMerchant ?? U.FindFirst<NFakeMerchant>(er);
     }
 
     public static List<NTreasureRoomRelicHolder> TreasureRelicHolders(NTreasureRoom tr)

@@ -619,6 +619,9 @@ internal static class Bridge
         return $"{conn} | {st} | {_probe.Screen}";
     }
 
+    public static string WaitHint() =>
+        !_rawStable && !Busy && _probe.Screen == "OTHER" && _probe.Wait.Length > 0 ? _probe.Wait : "";
+
     public static void PanelStartRun()
     {
         var req = new JsonObject { ["cmd"] = "start_run", ["character"] = "IRONCLAD", ["ascension"] = PanelAscension, ["seed"] = string.IsNullOrWhiteSpace(PanelSeed) ? null : PanelSeed.Trim() };

@@ -54,6 +54,7 @@ public static class SelfCheck
         s.Cfg.SimsFull = s.Cfg.SimsFast = s.GetI("sims", 8);
         var st = new Stats();
         CheckEventKeyMapping(st);
+        await CheckFakeMerchantAsync(s, st);
         FakeGame.DiscardOption = s.GetI("discard_option", 0) == 1;
         if (s.Kv.TryGetValue("dump", out string? dumpPath)) FakeGame.Dump = new StreamWriter(dumpPath) { AutoFlush = true };
         for (int i = 0; i < runs; i++)
@@ -122,6 +123,24 @@ public static class SelfCheck
                 st.Add(st.Bad, "error:event_key_map");
                 st.Example($"event_key_map {ev} key={key} title_key={tk}: got {got}, want {want}");
             }
+        }
+    }
+
+    private static async Task CheckFakeMerchantAsync(AgentSetup s, Stats st)
+    {
+        var ctl = new Controller(s, _ => { });
+        var state = new JsonObject
+        {
+            ["state_id"] = 1, ["stable"] = true, ["agent_mode"] = true, ["paused"] = false,
+            ["screen"] = "FAKE_MERCHANT", ["screen_detail"] = "NFakeMerchant",
+            ["run"] = new JsonObject { ["floor"] = 10 },
+            ["options"] = new JsonArray(new JsonObject { ["kind"] = "leave" }),
+        };
+        Decision d = await ctl.DecideAsync(state);
+        if (d.Pause is not null || d.Option != 0)
+        {
+            st.Add(st.Bad, "error:fake_merchant");
+            st.Example($"fake_merchant: got option={d.Option}, pause={d.Pause}, why={d.Why}");
         }
     }
 

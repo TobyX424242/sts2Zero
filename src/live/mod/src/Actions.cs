@@ -10,10 +10,12 @@ using MegaCrit.Sts2.Core.Nodes.Cards;
 using MegaCrit.Sts2.Core.Nodes.Cards.Holders;
 using MegaCrit.Sts2.Core.Nodes.Combat;
 using MegaCrit.Sts2.Core.Nodes.CommonUi;
+using MegaCrit.Sts2.Core.Nodes.Events.Custom;
 using MegaCrit.Sts2.Core.Nodes.GodotExtensions;
 using MegaCrit.Sts2.Core.Nodes.Rooms;
 using MegaCrit.Sts2.Core.Nodes.Screens.CardSelection;
 using MegaCrit.Sts2.Core.Nodes.Screens.GameOverScreen;
+using MegaCrit.Sts2.Core.Nodes.Screens.Map;
 using MegaCrit.Sts2.Core.Nodes.Screens.Overlays;
 using MegaCrit.Sts2.Core.Runs;
 
@@ -163,6 +165,32 @@ internal static class Actions
             await Bridge.Delay(StepMs);
         }
         return "shop proceed button never became enabled";
+    }
+
+    // ---------------------------------------------------------------- fake merchant
+    public static async Task<string?> FakeMerchantLeave(NFakeMerchant fm)
+    {
+        if (!U.Valid(fm)) return "fake merchant closed";
+        if (fm.Inventory != null && fm.Inventory.IsOpen)
+        {
+            var back = U.FindAll<NBackButton>(fm).FirstOrDefault(b => U.Usable(b));
+            if (back != null) back.ForceClick(); else fm.Inventory.Close();
+            await Bridge.Delay(500);
+        }
+        for (int i = 0; i < 10; i++)
+        {
+            if (!U.Valid(fm) || !fm.IsInsideTree() || NMapScreen.Instance?.IsOpen == true) return null;
+            if (Bridge.Halted) return Bridge.HaltText;
+            var proceed = U.Get<NProceedButton>(fm, "_proceedButton") ?? U.FindFirst<NProceedButton>(fm);
+            if (U.Usable(proceed))
+            {
+                proceed!.ForceClick();
+                await Bridge.Delay(200);
+                return null;
+            }
+            await Bridge.Delay(StepMs);
+        }
+        return "fake merchant proceed button never became enabled";
     }
 
     // ---------------------------------------------------------------- game over

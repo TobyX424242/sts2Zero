@@ -1459,6 +1459,166 @@ public sealed class RunAgent : IRunDecisionSource, ICombatCompletionValidator
 
     // ---- card prompts
 
+    private static readonly SearchAction[] ValueProbeAction = { new(ActionKind.EndTurn, "", null, Array.Empty<string[]>()) };
+
+    /// <summary>
+    /// Value-network expected-value selector for Gambling Chip: chooses a subset of the current hand (up to
+    /// <paramref name="maxDiscard"/> cards) to discard and redraw from the remaining draw pile, maximizing
+    /// E[V(s')] under the combat value head priced by this fight's T_f table. Uses stratified Common Random Numbers
+    /// over the draw pile (exact expectation for 1-card replacements when draw &lt;= 32) and forward-backward greedy
+    /// subset maximization.
+    /// </summary>
+    public async Task<(List<int> DiscardIndices, double BaseValue, double BestValue)> ChooseGamblingChipAsync(
+        CombatState state, int maxDiscard)
+    {
+        Pre();
+        if (_fight is null || !ReferenceEquals(_fight.Engine, state.Engine))
+        {
+            if (_fight is not null) EndFight(_fight.Engine.State);
+            _fight = await StartFightAsync(state);
+        }
+        LiveFight f = _fight;
+        CombatState work = state.Clone();
+        PlayerCombatState pcs = work.Players[0].PlayerCombatState!;
+        var origHand = pcs.Hand.Cards.ToList();
+        var origDraw = pcs.DrawPile.Cards.ToList();
+        var origDisc = pcs.DiscardPile.Cards.ToList();
+        int n = origHand.Count, m = origDraw.Count;
+        maxDiscard = Math.Clamp(maxDiscard, 0, n);
+        if (n == 0 || maxDiscard == 0 || (m == 0 && origDisc.Count == 0))
+            return (new List<int>(), 0.0, 0.0);
+
+        // Build K stratified permutations of the draw pile (Common Random Numbers across all subsets).
+        // When m <= 32, K = m and permutation r starts with origDraw[r], making 1-card replacement expectation exact.
+        var rng = new Random((int)(ResamplingClone.Mix(f.Seed, 0x6A4B11C0UL) & 0x7FFFFFFF));
+        int kSamples = m == 0 ? 1 : Math.Min(m, 32);
+        var firstOrder = Enumerable.Range(0, m).ToArray();
+        if (m > kSamples)
+            for (int i = 0; i < kSamples; i++) { int j = rng.Next(i, m); (firstOrder[i], firstOrder[j]) = (firstOrder[j], firstOrder[i]); }
+        var perms = new CardModel[kSamples][];
+        for (int r = 0; r < kSamples; r++)
+        {
+            var arr = origDraw.ToArray();
+            if (m > 0)
+            {
+                int first = firstOrder[r];
+                (arr[0], arr[first]) = (arr[first], arr[0]);
+                for (int i = 1; i < m - 1; i++) { int j = rng.Next(i, m); (arr[i], arr[j]) = (arr[j], arr[i]); }
+            }
+            perms[r] = arr;
+        }
+
+        int cap = _s.Net is BridgeEvaluator be ? Math.Max(1, be.Capacity) : 16;
+
+        void SetPiles(HashSet<int> discard, int sampleIdx)
+        {
+            foreach (CardModel c in pcs.Hand.Cards.ToList()) pcs.Hand.RemoveInternal(c);
+            foreach (CardModel c in pcs.DrawPile.Cards.ToList()) pcs.DrawPile.RemoveInternal(c);
+            foreach (CardModel c in pcs.DiscardPile.Cards.ToList()) pcs.DiscardPile.RemoveInternal(c);
+
+            var discList = new List<CardModel>(origDisc.Count + discard.Count);
+            discList.AddRange(origDisc);
+            for (int i = 0; i < n; i++)
+                if (discard.Contains(i)) discList.Add(origHand[i]);
+                else pcs.Hand.AddInternal(origHand[i]);
+
+            int need = discard.Count;
+            if (need == 0)
+            {
+                foreach (CardModel c in origDraw) pcs.DrawPile.AddInternal(c);
+                foreach (CardModel c in origDisc) pcs.DiscardPile.AddInternal(c);
+            }
+            else if (need <= m)
+            {
+                CardModel[] perm = perms[sampleIdx];
+                for (int i = 0; i < need; i++) pcs.Hand.AddInternal(perm[i]);
+                for (int i = need; i < m; i++) pcs.DrawPile.AddInternal(perm[i]);
+                foreach (CardModel c in discList) pcs.DiscardPile.AddInternal(c);
+            }
+            else
+            {
+                CardModel[] perm = perms[sampleIdx];
+                for (int i = 0; i < m; i++) pcs.Hand.AddInternal(perm[i]);
+                int rem = need - m;
+                var reshuf = discList.ToArray();
+                var r2 = new Random(sampleIdx * 7919 + 17);
+                for (int i = 0; i < reshuf.Length - 1; i++) { int j = r2.Next(i, reshuf.Length); (reshuf[i], reshuf[j]) = (reshuf[j], reshuf[i]); }
+                int take2 = Math.Min(rem, reshuf.Length);
+                for (int i = 0; i < take2; i++) pcs.Hand.AddInternal(reshuf[i]);
+                for (int i = take2; i < reshuf.Length; i++) pcs.DrawPile.AddInternal(reshuf[i]);
+            }
+            pcs.DrawPile.ResetPositionKnowledgeInternal();
+        }
+
+        async Task<double> EvalSubsetAsync(HashSet<int> discard)
+        {
+            if (discard.Count == 0)
+            {
+                SetPiles(discard, 0);
+                return (await _s.Net.EvaluateAsync(work, ValueProbeAction, f.Signals)).Value;
+            }
+            double sum = 0.0;
+            for (int off = 0; off < kSamples; off += cap)
+            {
+                int batch = Math.Min(cap, kSamples - off);
+                var tasks = new Task<NetEval>[batch];
+                for (int b = 0; b < batch; b++)
+                {
+                    SetPiles(discard, off + b);
+                    tasks[b] = _s.Net.EvaluateAsync(work, ValueProbeAction, f.Signals);
+                }
+                NetEval[] evs = await Task.WhenAll(tasks);
+                for (int b = 0; b < batch; b++) sum += evs[b].Value;
+            }
+            return sum / kSamples;
+        }
+
+        string[] handKeys = origHand.Select(CardSelectionOptions.EquivalenceKey).ToArray();
+        var best = new HashSet<int>();
+        double baseVal = await EvalSubsetAsync(best);
+        double bestVal = baseVal;
+
+        // Forward greedy: iteratively discard whichever remaining card increases E[V(s')] the most.
+        while (best.Count < maxDiscard)
+        {
+            int pick = -1;
+            double pickVal = bestVal;
+            var seenKeys = new HashSet<string>();
+            for (int i = 0; i < n; i++)
+            {
+                if (best.Contains(i) || !seenKeys.Add(handKeys[i])) continue;
+                best.Add(i);
+                double v = await EvalSubsetAsync(best);
+                best.Remove(i);
+                if (v > pickVal + 1e-6) { pickVal = v; pick = i; }
+            }
+            if (pick < 0) break;
+            best.Add(pick);
+            bestVal = pickVal;
+        }
+
+        // Backward check: undo any discard that hurts E[V(s')] once other cards were discarded.
+        while (best.Count >= 2)
+        {
+            int drop = -1;
+            double dropVal = bestVal;
+            var seenKeys = new HashSet<string>();
+            foreach (int i in best.ToList())
+            {
+                if (!seenKeys.Add(handKeys[i])) continue;
+                best.Remove(i);
+                double v = await EvalSubsetAsync(best);
+                best.Add(i);
+                if (v > dropVal + 1e-6) { dropVal = v; drop = i; }
+            }
+            if (drop < 0) break;
+            best.Remove(drop);
+            bestVal = dropVal;
+        }
+
+        return (best.OrderBy(x => x).ToList(), baseVal, bestVal);
+    }
+
     public async Task<IReadOnlyList<CardModel>> ChooseCardsAsync(CardSelectionRequest request)
     {
         if (request.IsLiveCombatSelection)

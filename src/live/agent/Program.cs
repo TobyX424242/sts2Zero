@@ -11,7 +11,7 @@
 //   potion_mix=FILE (the chain's vbar file), vocab, mvocab.
 // Play keys: asc (0-10: start a run at this level when the game is at the main menu; omitted = attach to the run in
 //   progress or the one started from the in-game panel), seed, force_start (1: start_run even if a run is in progress),
-//   loop (1: after a game over start the next run at asc), host (127.0.0.1), port (47213), log (dir, src/live/logs),
+//   loop (1, default: stay online after a game over for the next run; 0 = exit after one run), host (127.0.0.1), port (47213), log (dir, src/live/logs),
 //   dry (1: decide and log, never send act), poll_ms (150), delay_ms (sent with config if given), root (tree root).
 using System.Text.Json.Nodes;
 using Sts2Sim.Core.Content;
@@ -76,7 +76,7 @@ static async Task<int> PlayAsync(AgentSetup s, string root)
 {
     string host = s.Get("host", "127.0.0.1");
     int port = s.GetI("port", 47213), pollMs = s.GetI("poll_ms", 150);
-    bool dry = s.GetI("dry", 0) == 1, loop = s.GetI("loop", 0) == 1;
+    bool dry = s.GetI("dry", 0) == 1, loop = s.GetI("loop", 1) == 1;
     int? asc = s.Kv.ContainsKey("asc") ? s.GetI("asc", 0) : null;
     if (asc is < 0 or > 10) { Console.WriteLine("asc must be 0-10"); return 2; }
     string logDir = s.Get("log", Path.Combine(root, "src", "live", "logs"));
@@ -97,15 +97,16 @@ static async Task<int> PlayAsync(AgentSetup s, string root)
     if (s.Kv.ContainsKey("delay_ms")) game.Config(s.GetI("delay_ms", 400), null);
     bool startPending = asc is not null;
     int lastId = -1, rejects = 0, runsDone = 0, runsWon = 0;
-    bool runWon = false;
+    bool runWon = false, gameOverReported = false;
     string lastWait = "";
     while (true)
     {
         JsonObject st;
         try { st = game.State(); }
-        catch (Exception e) { Console.WriteLine($"[live] state request failed: {e.Message}"); Thread.Sleep(2000); continue; }
+        catch (Exception e) { Console.WriteLine($"[live] state request failed: {e.Message}"); lastId = -1; Thread.Sleep(2000); continue; }
         int id = st.Int("state_id", -1);
         string screen = st.Str("screen") ?? "?";
+        if (screen != "GAME_OVER") gameOverReported = false;
         if (startPending)
         {
             if (screen == "MAIN_MENU" || s.GetI("force_start", 0) == 1)
@@ -176,8 +177,9 @@ static async Task<int> PlayAsync(AgentSetup s, string root)
             }
         }
         over:
-        if (d.Info.ContainsKey("game_over"))
+        if (d.Info.ContainsKey("game_over") && !gameOverReported)
         {
+            gameOverReported = true;
             JsonObject? run = st.Obj("run");
             runsDone++; if (runWon) runsWon++;
             Console.WriteLine($"[live] RUN {(runWon ? "WON" : "LOST")}: A{run?.Int("ascension")}, floor {run?.Int("floor")}, act {run?.Int("act_index") + 1}" +

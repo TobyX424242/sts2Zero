@@ -153,6 +153,7 @@ internal sealed class Panel
             _status.Text = Bridge.StatusLine();
             string info = "";
             if (Bridge.Paused) info += "Paused: " + (Bridge.PauseReason ?? "") + "\n";
+            else if (Bridge.WaitHint() is { Length: > 0 } wh) info += "Wait: " + wh + "\n";
             if (Bridge.LastAction.Length > 0) info += "Last: " + Bridge.LastAction + "\n";
             if (Bridge.LastError.Length > 0 && !(Bridge.Paused && Bridge.PauseReason == Bridge.LastError)) info += "Error: " + Bridge.LastError;
             _info.Text = info.TrimEnd();

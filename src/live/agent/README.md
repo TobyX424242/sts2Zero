@@ -60,9 +60,10 @@ on simulator objects built from the game's options, and the object it returns is
 | SHOP | ChooseShopActionAsync (a MerchantInventory of the offered entries at the shown prices) | entry; a removal's card is picked in the selection screen |
 | CARD_SELECT | ChooseCardsAsync (deck cards of the import, or new cards for "generated"), with the deck purpose (upgrade / remove / transform) | card objects → indices |
 | COMBAT | ChooseCombatActionAsync on the synced shadow fight (T_f table built at the fight's first decision, as in self-play) | hand position / potion slot, target = the game's monster index |
-| COMBAT_SELECT | the answer RunAgent gave to the same prompt in the shadow fight (or its search action's planned answer); else ChooseCardsAsync on the offered cards | card keys → indices |
+| COMBAT_SELECT | Gambling Chip: combat value-network EV maximiser over stratified draw-pile permutations; otherwise the answer RunAgent gave to the same prompt in the shadow fight (or its search action's planned answer); else ChooseCardsAsync on the offered cards | card keys → indices |
 | OTHER (relic choice) | the Ancient head through RunAgent's option sampler (no such screen in the simulator) | relic id |
 | CRYSTAL_SPHERE | a uniformly random hidden cell (pure chance) | cell |
+| FAKE_MERCHANT | leaves by default | leave |
 | TREASURE, GAME_OVER | open / take / proceed; to_menu | – |
 
 Anything that cannot be mapped (an unknown screen, a card or event the simulator lacks, an option missing on
@@ -90,9 +91,9 @@ in-fight growth (Rampage, Thrash) when the copy had to create or rebuild the car
 the next move, afflictions' amounts. The copy applies every action the agent sends. When the copy's fight ends
 before the game's (its own random targets or rolls), it is rebuilt and RunAgent keeps its table and search.
 
-Not available from the mod (v1): potion rewards with a full belt and out-of-combat potion discard (the potion_mix
-belt rule cannot swap; such potions are left), some custom event screens (e.g. the Fake Merchant: the mod waits for
-the player), and the source model of a deck selection (deck_route uses the current event when there is one).
+Not available from the mod (v1): full-belt potion swaps inside shops (reward-screen full-belt swaps via
+`discard_potion` are supported), Fake Merchant purchases / Foul Potion throw (the mod and controller leave the room
+by default), and the source model of a deck selection (deck_route uses the current event when there is one).
 
 ## Self-check
 
